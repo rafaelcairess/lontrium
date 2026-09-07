@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **O Lontrium Control v1.0.0 já está disponível.** Baixe o instalador acima
+> **O Lontrium Control v1.0.1 já está disponível.** Baixe o instalador acima
 
 <p align="center">
   <img src="images/05-dashboard.png" alt="Painel do Lontrium Control mostrando jogos e resultados do AliExpress" width="1100">
@@ -101,7 +101,7 @@ Cada credencial possui uma explicação acessível no botão `?`. A interface fu
 - Use **Configurações** para alterar lojas, contas, notificações e agendamento.
 - As atualizações são oferecidas no painel e preservam o volume local.
 
-O launcher verifica o Docker, inicia o serviço, espera o painel responder e o abre automaticamente. A desinstalação mantém contas e sessões por padrão; apagar os dados locais é uma opção separada e explícita. O Docker Desktop nunca é removido automaticamente.
+O atalho normal verifica o Docker, inicia o serviço, espera o painel responder e o abre automaticamente. Para a inicialização com o Windows, o instalador oferece o modo econômico (padrão), que aguarda a coleta e libera a memória WSL do Docker, ou o modo painel, que mantém o painel local disponível. A desinstalação mantém contas e sessões por padrão; apagar os dados locais é uma opção separada e explícita. O Docker Desktop nunca é removido automaticamente.
 
 ## Precisa de ajuda?
 

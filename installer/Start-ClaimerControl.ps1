@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("start", "source", "update", "uninstall", "check")]
+    [ValidateSet("start", "economy", "source", "update", "uninstall", "check")]
     [string]$Action = "start",
     [ValidateSet("auto", "en", "pt-BR", "es")]
     [string]$Language = "auto",
@@ -30,6 +30,12 @@ $Messages = @{
         WaitingPanel = "Waiting for the local dashboard"
         PanelTimeout = "The container started, but the local dashboard did not respond. Open Docker Desktop and check the claimer-control container."
         Ready = "Lontrium Control is ready. Opening the local dashboard..."
+        EconomyWaiting = "Economy mode: waiting for the automatic run to finish"
+        EconomyComplete = "Automatic run finished. Releasing Docker and WSL memory..."
+        EconomyNoRun = "No automatic run is due. Releasing Docker and WSL memory..."
+        EconomySetup = "Initial setup is not complete. The dashboard will remain open."
+        EconomyTimeout = "The automatic run did not finish in time. Docker will remain running so you can inspect the dashboard."
+        EconomySharedDocker = "Another container is running. Lontrium was stopped, but Docker will remain available for the other application."
         UpdateCheck = "Checking the official Lontrium Control Release..."
         UpToDate = "Lontrium Control is already up to date."
         UpdatePrompt = "Update from {0} to {1}? [Y/n]"
@@ -58,6 +64,12 @@ $Messages = @{
         WaitingPanel = "Aguardando o painel local"
         PanelTimeout = "O container iniciou, mas o painel local não respondeu. Abra o Docker Desktop e verifique o container claimer-control."
         Ready = "Lontrium Control pronto. Abrindo o painel local..."
+        EconomyWaiting = "Modo econômico: aguardando a coleta automática terminar"
+        EconomyComplete = "Coleta automática concluída. Liberando a memória do Docker e do WSL..."
+        EconomyNoRun = "Nenhuma coleta automática está pendente. Liberando a memória do Docker e do WSL..."
+        EconomySetup = "A configuração inicial ainda não terminou. O painel permanecerá aberto."
+        EconomyTimeout = "A coleta automática não terminou a tempo. O Docker permanecerá ligado para você verificar o painel."
+        EconomySharedDocker = "Outro container está em execução. O Lontrium foi parado, mas o Docker continuará disponível para o outro aplicativo."
         UpdateCheck = "Consultando a Release oficial do Lontrium Control..."
         UpToDate = "O Lontrium Control já está atualizado."
         UpdatePrompt = "Atualizar da versão {0} para {1}? [S/n]"
@@ -86,6 +98,12 @@ $Messages = @{
         WaitingPanel = "Esperando el panel local"
         PanelTimeout = "El contenedor se inició, pero el panel local no respondió. Abre Docker Desktop y comprueba el contenedor claimer-control."
         Ready = "Lontrium Control está listo. Abriendo el panel local..."
+        EconomyWaiting = "Modo económico: esperando a que termine la ejecución automática"
+        EconomyComplete = "La ejecución automática terminó. Liberando la memoria de Docker y WSL..."
+        EconomyNoRun = "No hay ninguna ejecución automática pendiente. Liberando la memoria de Docker y WSL..."
+        EconomySetup = "La configuración inicial no ha terminado. El panel permanecerá abierto."
+        EconomyTimeout = "La ejecución automática no terminó a tiempo. Docker seguirá activo para que puedas revisar el panel."
+        EconomySharedDocker = "Hay otro contenedor en ejecución. Lontrium se detuvo, pero Docker seguirá disponible para la otra aplicación."
         UpdateCheck = "Consultando la Release oficial de Lontrium Control..."
         UpToDate = "Lontrium Control ya está actualizado."
         UpdatePrompt = "¿Actualizar de la versión {0} a {1}? [S/n]"
@@ -291,7 +309,7 @@ function Wait-Panel {
 
 function Get-LatestReleaseTag {
     Write-Step $Script:Text.UpdateCheck
-    $release = Invoke-RestMethod -Uri $ReleaseApi -Headers @{Accept = "application/vnd.github+json"; "User-Agent" = "lontrium-launcher/1.0.0"} -TimeoutSec 15
+    $release = Invoke-RestMethod -Uri $ReleaseApi -Headers @{Accept = "application/vnd.github+json"; "User-Agent" = "lontrium-launcher/1.0.1"} -TimeoutSec 15
     $tag = [string]$release.tag_name
     if ($tag -notmatch "^v\d+\.\d+\.\d+$") { throw $Script:Text.UpdateInvalid }
     return $tag
@@ -316,6 +334,96 @@ function Start-SourceApplication {
     Start-Process $PanelUrl | Out-Null
 }
 
+function Get-DashboardJson([string]$Path) {
+    return Invoke-RestMethod -Uri "$PanelUrl$Path" -Method Get -TimeoutSec 5
+}
+
+function Wait-EconomyRun {
+    $config = Get-DashboardJson "/api/config"
+    if ($config.setup.required -and -not $config.setup.complete) {
+        Write-Host $Script:Text.EconomySetup -ForegroundColor Yellow
+        Start-Process $PanelUrl | Out-Null
+        return $false
+    }
+
+    Write-Step $Script:Text.EconomyWaiting
+    $observedRun = $false
+    for ($attempt = 1; $attempt -le 15; $attempt++) {
+        $status = Get-DashboardJson "/api/status"
+        if ($status.running) {
+            $observedRun = $true
+            break
+        }
+        if ($status.startedAt -and $status.finishedAt) {
+            Write-Host " OK" -ForegroundColor Green
+            return $true
+        }
+        Start-Sleep -Seconds 2
+    }
+
+    if (-not $observedRun) {
+        Write-Host $Script:Text.EconomyNoRun -ForegroundColor Green
+        return $true
+    }
+
+    for ($attempt = 1; $attempt -le 720; $attempt++) {
+        $status = Get-DashboardJson "/api/status"
+        if (-not $status.running) {
+            Write-Host " OK" -ForegroundColor Green
+            Write-Host $Script:Text.EconomyComplete -ForegroundColor Green
+            return $true
+        }
+        if (($attempt % 6) -eq 0) { Write-Host "." -NoNewline }
+        Start-Sleep -Seconds 5
+    }
+
+    Write-Host $Script:Text.EconomyTimeout -ForegroundColor Yellow
+    Start-Process $PanelUrl | Out-Null
+    return $false
+}
+
+function Get-RunningContainerIds {
+    $containers = @(& docker ps --quiet)
+    if ($LASTEXITCODE -ne 0) { throw "Could not inspect running Docker containers" }
+    return $containers
+}
+
+function Stop-DockerAfterEconomyRun {
+    Invoke-Compose @("stop", "app")
+    $otherContainers = @(Get-RunningContainerIds)
+    if ($otherContainers.Count -gt 0) {
+        Write-Host $Script:Text.EconomySharedDocker -ForegroundColor Yellow
+        return
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & docker desktop stop --force *> $null
+        if ($LASTEXITCODE -ne 0) {
+            $dockerCli = Join-Path $env:ProgramFiles "Docker\Docker\DockerCli.exe"
+            if (Test-Path -LiteralPath $dockerCli) {
+                & $dockerCli -Shutdown *> $null
+            }
+        }
+        # Terminate only Docker's WSL distribution. Other Linux distributions
+        # (for example Ubuntu with unsaved work) must never be interrupted.
+        & wsl.exe --terminate docker-desktop *> $null
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
+function Start-EconomyApplication {
+    Adopt-LegacyData
+    Write-Step $Script:Text.Starting
+    Invoke-Compose @("up", "-d", "app")
+    Wait-Panel
+    if (Wait-EconomyRun) {
+        Stop-DockerAfterEconomyRun
+    }
+}
+
 function Update-Application {
     $latest = Get-LatestReleaseTag
     $current = Get-EnvironmentValue "CLAIMER_TAG"
@@ -330,7 +438,7 @@ function Update-Application {
 }
 
 function Invoke-ClaimerControl(
-    [ValidateSet("start", "source", "update", "uninstall", "check")]
+    [ValidateSet("start", "economy", "source", "update", "uninstall", "check")]
     [string]$RequestedAction = $Action
 ) {
     try {
@@ -342,6 +450,7 @@ function Invoke-ClaimerControl(
         if (-not (Test-DockerCommandAvailable)) { Install-DockerDesktop }
         Wait-DockerDesktop
         if ($RequestedAction -eq "update") { Update-Application }
+        elseif ($RequestedAction -eq "economy") { Start-EconomyApplication }
         elseif ($RequestedAction -eq "source") { Start-SourceApplication }
         elseif ($RequestedAction -eq "uninstall") {
             Invoke-Compose @("down")

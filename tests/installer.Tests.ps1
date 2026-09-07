@@ -7,6 +7,7 @@ Describe "Lontrium Control launcher flow" {
         Mock Test-Path { $true }
         Mock Wait-DockerDesktop {}
         Mock Start-Application {}
+        Mock Start-EconomyApplication {}
         Mock Start-SourceApplication {}
         Mock Install-DockerDesktop {}
     }
@@ -42,6 +43,14 @@ Describe "Lontrium Control launcher flow" {
         $result = Invoke-ClaimerControl -RequestedAction source
         if ($result -ne 0) { throw "Expected launcher exit code 0, got $result" }
         Assert-MockCalled Start-SourceApplication -Times 1 -Exactly -Scope It
+        Assert-MockCalled Start-Application -Times 0 -Exactly -Scope It
+    }
+
+    It "uses economy mode for unattended Windows startup" {
+        Mock Test-DockerCommandAvailable { $true }
+        $result = Invoke-ClaimerControl -RequestedAction economy
+        if ($result -ne 0) { throw "Expected launcher exit code 0, got $result" }
+        Assert-MockCalled Start-EconomyApplication -Times 1 -Exactly -Scope It
         Assert-MockCalled Start-Application -Times 0 -Exactly -Scope It
     }
 }
@@ -125,5 +134,60 @@ Describe "Application identity" {
         if ($installer -notmatch 'Source: "claimer\.env";[^\r\n]+onlyifdoesntexist') {
             throw "Installer upgrades could replace the user's persistent volume configuration"
         }
+    }
+
+    It "offers exclusive economy and persistent-dashboard startup modes" {
+        $installer = Get-Content -LiteralPath "$PSScriptRoot/../installer/ClaimerControl.iss" -Raw
+        if ($installer -notmatch 'Name: "autostart\\economy";[^\r\n]+Flags: exclusive checkedonce') {
+            throw "Economy mode is not the default exclusive startup choice"
+        }
+        if ($installer -notmatch 'Name: "autostart\\dashboard";[^\r\n]+Flags: exclusive') {
+            throw "Persistent dashboard mode is not an exclusive startup choice"
+        }
+        if ($installer -notmatch '\{userstartup\}\\Lontrium Control[^\r\n]+-Action economy[^\r\n]+Tasks: autostart\\economy') {
+            throw "The economy startup shortcut is not scoped to economy mode"
+        }
+        if ($installer -notmatch '\{userstartup\}\\Lontrium Control[^\r\n]+Start-ClaimerControl\.cmd[^\r\n]+Tasks: autostart\\dashboard') {
+            throw "The persistent startup shortcut is not scoped to dashboard mode"
+        }
+        if ($installer -notmatch '\{autodesktop\}\\Lontrium Control[^\r\n]+Start-ClaimerControl\.cmd') {
+            throw "The normal desktop shortcut should keep the dashboard running"
+        }
+        if ($installer -notmatch 'Type: files; Name: "\{userstartup\}\\Lontrium Control\.lnk"') {
+            throw "Installer upgrades could leave the previously selected startup mode behind"
+        }
+    }
+}
+
+Describe "Economy mode" {
+    BeforeAll {
+        . "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Action economy -Language en
+    }
+
+    It "keeps Docker running while initial setup is pending" {
+        Mock Get-DashboardJson { [pscustomobject]@{setup = [pscustomobject]@{required = $true; complete = $false}} }
+        Mock Start-Process {}
+        $result = Wait-EconomyRun
+        if ($result) { throw "Economy mode must not stop Docker before setup is complete" }
+        Assert-MockCalled Start-Process -Times 1 -Exactly -Scope It
+    }
+
+    It "finishes when an observed automatic run becomes idle" {
+        $script:dashboardResponses = [System.Collections.Queue]::new()
+        $script:dashboardResponses.Enqueue([pscustomobject]@{setup = [pscustomobject]@{required = $true; complete = $true}})
+        $script:dashboardResponses.Enqueue([pscustomobject]@{running = $true; startedAt = "2026-09-07T00:00:00Z"; finishedAt = $null})
+        $script:dashboardResponses.Enqueue([pscustomobject]@{running = $false; startedAt = "2026-09-07T00:00:00Z"; finishedAt = "2026-09-07T00:01:00Z"})
+        Mock Get-DashboardJson { $script:dashboardResponses.Dequeue() }
+        Mock Start-Sleep {}
+        $result = Wait-EconomyRun
+        if (-not $result) { throw "Economy mode should finish after the run becomes idle" }
+        if ($script:dashboardResponses.Count -ne 0) { throw "Not all dashboard states were checked" }
+    }
+
+    It "does not stop Docker Desktop when another container is running" {
+        Mock Invoke-Compose {}
+        Mock Get-RunningContainerIds { "another-container-id" }
+        Stop-DockerAfterEconomyRun
+        Assert-MockCalled Get-RunningContainerIds -Times 1 -Exactly -Scope It
     }
 }

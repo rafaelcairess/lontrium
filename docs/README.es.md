@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **Lontrium Control v1.0.0 ya está disponible.** Descarga el instalador de arriba y verifícalo con [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **Lontrium Control v1.0.1 ya está disponible.** Descarga el instalador de arriba y verifícalo con [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="images/05-dashboard.png" alt="Panel de Lontrium Control con resultados de juegos y AliExpress" width="1100">
@@ -101,7 +101,7 @@ Cada credencial tiene una explicación accesible en el botón `?`. La interfaz f
 - Usa **Configuración** para cambiar tiendas, cuentas, notificaciones y horarios.
 - Las actualizaciones se ofrecen en el panel y conservan el volumen local.
 
-El launcher comprueba Docker, inicia el servicio, espera al panel y lo abre automáticamente. Al desinstalar Lontrium Control se conservan las cuentas y sesiones por defecto; borrar los datos locales es una opción separada y explícita. Docker Desktop nunca se elimina automáticamente.
+El acceso directo normal comprueba Docker, inicia el servicio, espera al panel y lo abre automáticamente. Para el inicio con Windows, el instalador ofrece el modo económico (predeterminado), que espera la ejecución y libera la memoria WSL de Docker, o el modo panel, que mantiene disponible el panel local. Al desinstalar Lontrium Control se conservan las cuentas y sesiones por defecto; borrar los datos locales es una opción separada y explícita. Docker Desktop nunca se elimina automáticamente.
 
 ## ¿Necesitas ayuda?
 

@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.1] - 2026-09-07
+
+### Added
+- **Economy mode for Windows startup** — after an automatic claim run finishes, Lontrium stops its container and releases Docker Desktop's WSL memory. If another container is active, Docker remains running; pending setup and timed-out runs also remain available for inspection.
+- **Explicit startup choice in the Windows installer** — economy mode is selected by default, while dashboard mode keeps Lontrium and Docker running. Automatic startup can still be disabled entirely.
+
+### Changed
+- The Windows launcher terminates only Docker's own WSL distribution and never interrupts unrelated Linux distributions.
+
 ## [1.8] - 2026-09-05
 
 ### Added

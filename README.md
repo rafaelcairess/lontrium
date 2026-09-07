@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **Lontrium Control v1.0.0 is available now.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **Lontrium Control v1.0.1 is available now.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="docs/images/05-dashboard.png" alt="Lontrium Control dashboard showing game and AliExpress results" width="1100">
@@ -101,7 +101,7 @@ Every credential field includes an accessible `?` explanation. The interface sup
 - Use **Settings** to change stores, accounts, notifications or scheduling.
 - Updates are offered in the dashboard and preserve the local volume.
 
-The Windows launcher checks Docker, starts the service, waits for the dashboard and opens it automatically. Uninstalling Lontrium Control keeps accounts and sessions by default; deleting local data is a separate, explicit option. Docker Desktop is never removed automatically.
+The normal Windows shortcut checks Docker, starts the service, waits for the dashboard and opens it automatically. For Windows sign-in, the installer offers economy mode (the default), which waits for the claim run and releases Docker's WSL memory, or dashboard mode, which keeps the local panel available. Uninstalling Lontrium Control keeps accounts and sessions by default; deleting local data is a separate, explicit option. Docker Desktop is never removed automatically.
 
 ## Need help?
 
