@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.0] - 2026-09-07
+
+### Added
+- **Shopee daily coin check-in** — reads the official Coins page, collects the visible daily reward, confirms the updated state and records the coin result in the local dashboard history.
+- **Official Shopee branding** alongside the existing AliExpress logo in the dashboard and store selector.
+
+### Changed
+- Shopee can be run individually while an unrelated scheduled store sequence is active. Duplicate Shopee runs remain blocked.
+- The dashboard and documentation explain that the first Shopee session must use the manual **Continue with Google** flow because Shopee security rejects direct login in the Docker browser. No security challenge is bypassed.
+
 ## [1.0.1] - 2026-09-07
 
 ### Added

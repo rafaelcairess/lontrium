@@ -18,6 +18,10 @@ STORE_META = {
     "unity": {"name": "Unity", "badge": "U", "color": "#ffffff"},
     "gamerpower": {"name": "GamerPower", "badge": "⚡", "color": "#ffb020"},
     "aliexpress": {"name": "AliExpress", "badge": "AE", "color": "#ff4747"},
+    "shopee": {
+        "name": "Shopee", "badge": "S", "color": "#ee4d2d",
+        "authNoteKey": "storeAuth.shopee",
+    },
 }
 
 
@@ -55,7 +59,7 @@ def summarize_store_result(store_key: str, result) -> tuple[str, dict | None]:
     if not isinstance(result, dict):
         return "Concluído sem novidades", None
 
-    if store_key == "aliexpress" and isinstance(result.get("checkin"), dict):
+    if store_key in {"aliexpress", "shopee"} and isinstance(result.get("checkin"), dict):
         source = result["checkin"]
         outcome = source.get("outcome")
         if outcome not in {"collected", "collected_manual", "already_collected", "not_collected", "available"}:
@@ -111,6 +115,7 @@ class DashboardState:
         self._run_id: str | None = None
         self._started_at: str | None = None
         self._finished_at: str | None = None
+        self._store_runs: dict[str, tuple[str, str]] = {}
         self._history: list[dict] = []
         self._stores = {
             key: {
@@ -132,6 +137,7 @@ class DashboardState:
             self._started_at = _now()
             for key in store_keys:
                 if key in self._stores:
+                    self._store_runs[key] = (self._run_id, self._started_at)
                     self._stores[key].update(
                         state="queued", message="Na fila", messageKey="status.queued", details=None
                     )
@@ -155,6 +161,9 @@ class DashboardState:
         with self._lock:
             if key in self._stores:
                 finished_at = _now()
+                run_id, started_at = self._store_runs.pop(
+                    key, (self._run_id or uuid4().hex, self._started_at or finished_at)
+                )
                 resolved_key = message_key or (
                     "status.failed" if failed else (
                         "status.resultCoins" if details and details.get("kind") == "coins" else
@@ -170,12 +179,12 @@ class DashboardState:
                     details=deepcopy(details),
                 )
                 record = {
-                    "runId": self._run_id or uuid4().hex,
+                    "runId": run_id,
                     "store": key,
                     "state": "error" if failed else "success",
                     "message": message,
                     "messageKey": resolved_key,
-                    "startedAt": self._started_at or finished_at,
+                    "startedAt": started_at,
                     "finishedAt": finished_at,
                     "details": deepcopy(details),
                 }
@@ -186,8 +195,14 @@ class DashboardState:
 
     def finish_run(self) -> None:
         with self._lock:
-            self._running = False
-            self._finished_at = _now()
+            # Independent store actions may overlap a scheduled run. Keep the
+            # global indicator active while any row is still queued or running.
+            self._running = any(
+                store["state"] in {"queued", "running"}
+                for store in self._stores.values()
+            )
+            if not self._running:
+                self._finished_at = _now()
 
     def restore(self, records: list[dict]) -> None:
         """Restore recent safe results loaded from the persistent database."""

@@ -13,7 +13,7 @@ from dotenv import set_key
 from src.core.config import cfg
 
 
-STORE_KEYS = ("steam", "epic", "fab", "prime", "gog", "ubisoft", "unity", "gamerpower", "aliexpress")
+STORE_KEYS = ("steam", "epic", "fab", "prime", "gog", "ubisoft", "unity", "gamerpower", "aliexpress", "shopee")
 
 
 @dataclass(frozen=True)

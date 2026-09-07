@@ -112,6 +112,24 @@ def test_dashboard_state_only_exposes_safe_result_details():
     assert ali["messageKey"] == "status.resultCoins"
 
 
+def test_finishing_independent_store_keeps_overlapping_run_active():
+    state = DashboardState()
+    state.begin_run(["epic", "gog"])
+    state.begin_store("epic")
+    state.begin_run(["shopee"])
+    state.begin_store("shopee")
+
+    state.finish_store("shopee", "1 moeda coletada")
+    state.finish_run()
+    assert state.snapshot(["epic", "gog", "shopee"])["running"] is True
+
+    state.finish_store("epic", "Concluído")
+    state.begin_store("gog")
+    state.finish_store("gog", "Concluído")
+    state.finish_run()
+    assert state.snapshot(["epic", "gog", "shopee"])["running"] is False
+
+
 def test_game_result_summary_keeps_titles_but_removes_codes_accounts_and_urls():
     message, details = summarize_store_result(
         "prime",
@@ -206,6 +224,10 @@ def test_dashboard_http_api_and_csrf():
         with urlopen(f"{base}/assets/icons/aliexpress.svg", timeout=3) as response:
             assert response.headers.get_content_type() == "image/svg+xml"
             assert response.read().startswith(b"<svg")
+
+        with urlopen(f"{base}/assets/icons/shopee.svg", timeout=3) as response:
+            assert response.headers.get_content_type() == "image/svg+xml"
+            assert b"<title>Shopee</title>" in response.read()
 
         with urlopen(f"{base}/assets/icons/lontrium.png", timeout=3) as response:
             assert response.headers.get_content_type() == "image/png"

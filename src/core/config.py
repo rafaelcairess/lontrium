@@ -44,7 +44,7 @@ def _int(key: str, default: int = 0) -> int:
 
 
 # Aliases so NOTIFY_SKIP_STORES accepts the same names as the CLI/STORES.
-_STORE_ALIASES = {"ae": "aliexpress", "amazon": "prime", "gp": "gamerpower"}
+_STORE_ALIASES = {"ae": "aliexpress", "sh": "shopee", "amazon": "prime", "gp": "gamerpower"}
 
 
 def _skip_stores(key: str) -> set:

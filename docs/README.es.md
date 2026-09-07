@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **Lontrium Control v1.0.1 ya está disponible.** Descarga el instalador de arriba y verifícalo con [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **Lontrium Control v1.1.0 ya está disponible.** Descarga el instalador de arriba y verifícalo con [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="images/05-dashboard.png" alt="Panel de Lontrium Control con resultados de juegos y AliExpress" width="1100">
@@ -36,7 +36,7 @@
 ## Qué hace
 
 - Reclama juegos, recursos y recompensas elegibles en las tiendas seleccionadas.
-- Recoge la recompensa diaria de AliExpress y muestra monedas, saldo y racha.
+- Recoge monedas diarias de AliExpress y Shopee y muestra el resultado y el saldo.
 - Informa el resultado real de cada ejecución, no solo una cantidad genérica.
 - Funciona con un horario y puede iniciarse automáticamente con Windows.
 - Abre un navegador visual cuando una tienda requiere inicio de sesión o confirmación manual.
@@ -46,9 +46,12 @@
 
 | Juegos y recursos | Recompensas y descubrimiento |
 |---|---|
-| Epic Games, Steam, GOG, Prime Gaming, Ubisoft, Fab y Unity Asset Store | Monedas diarias de AliExpress y descubrimiento de promociones con GamerPower |
+| Epic Games, Steam, GOG, Prime Gaming, Ubisoft, Fab y Unity Asset Store | Monedas diarias de AliExpress y Shopee, más promociones de GamerPower |
 
 GamerPower también puede enviar promociones compatibles de Fanatical, itch.io e IndieGala. La disponibilidad y los requisitos de acceso dependen de cada tienda.
+
+> [!IMPORTANT]
+> **Shopee requiere un primer inicio manual mediante _Continuar con Google_.** En la prueba real, la seguridad de Shopee rechazó el acceso directo dentro del navegador Docker, pero el acceso con Google funcionó. Lontrium no intenta eludir esa protección; después, el perfil persistente local reutiliza la sesión.
 
 ## Instálalo en tres pasos
 
@@ -77,7 +80,7 @@ Las credenciales son opcionales y el acceso manual mediante el navegador siempre
 
 ## Diseñado para ser claro
 
-Solo las tiendas habilitadas aparecen en el panel. Cada fila explica qué ocurrió: qué juego fue reclamado, cuál ya estaba en la biblioteca, si no había promoción o cuántas monedas de AliExpress fueron recogidas.
+Solo las tiendas habilitadas aparecen en el panel. Cada fila explica qué ocurrió: qué juego fue reclamado, cuál ya estaba en la biblioteca, si no había promoción o cuántas monedas de AliExpress o Shopee fueron recogidas.
 
 ### Configuración guiada de la cuenta
 

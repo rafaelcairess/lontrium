@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **Lontrium Control v1.0.1 is available now.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **Lontrium Control v1.1.0 is available now.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="docs/images/05-dashboard.png" alt="Lontrium Control dashboard showing game and AliExpress results" width="1100">
@@ -36,7 +36,7 @@
 ## What it does
 
 - Claims eligible free games, assets and rewards from your selected stores.
-- Collects the AliExpress daily coin reward and shows coins, balance and streak.
+- Collects daily coin rewards from AliExpress and Shopee and shows the result and balance.
 - Shows the actual result of each run instead of only a generic success count.
 - Runs on a schedule and can start automatically with Windows.
 - Opens a visual browser whenever a store requires manual login or confirmation.
@@ -46,9 +46,12 @@
 
 | Games and assets | Rewards and discovery |
 |---|---|
-| Epic Games, Steam, GOG, Prime Gaming, Ubisoft, Fab and Unity Asset Store | AliExpress daily coins and GamerPower giveaway discovery |
+| Epic Games, Steam, GOG, Prime Gaming, Ubisoft, Fab and Unity Asset Store | AliExpress and Shopee daily coins, plus GamerPower giveaway discovery |
 
 GamerPower can also route compatible giveaways from Fanatical, itch.io and IndieGala. Availability and login requirements are controlled by each store.
+
+> [!IMPORTANT]
+> **Shopee requires a one-time manual login through _Continue with Google_.** In our live test, Shopee's security rejected direct account login inside the Docker browser, while Google login succeeded. Lontrium does not attempt to bypass that protection; after the Google login, the local persistent browser profile reuses the session.
 
 ## Install in three steps
 
@@ -77,7 +80,7 @@ Credentials are optional; manual browser login is always available. Locally save
 
 ## Designed for clarity
 
-Only enabled stores appear on the dashboard. Each row reports what happened: which game was claimed, which one was already owned, whether no giveaway was available, or how many AliExpress coins were collected.
+Only enabled stores appear on the dashboard. Each row reports what happened: which game was claimed, which one was already owned, whether no giveaway was available, or how many AliExpress or Shopee coins were collected.
 
 ### Guided account setup
 

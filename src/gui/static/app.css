@@ -289,12 +289,14 @@ h1, h2, h3, .brand-name, .store-name {
 .store-unity { --store-color: #f2f2f2; --store-bg: rgba(242, 242, 242, .08); }
 .store-gamerpower { --store-color: #f3d17a; --store-bg: rgba(243, 209, 122, .09); }
 .store-aliexpress { --store-color: #fb7c7c; --store-bg: rgba(251, 124, 124, .1); }
+.store-shopee { --store-color: #ee4d2d; --store-bg: rgba(238, 77, 45, .1); }
 .store-logo { width: 21px; height: 21px; background: var(--store-color); -webkit-mask: center / contain no-repeat; mask: center / contain no-repeat; }
 .logo-steam { -webkit-mask-image: url('/assets/icons/steam.svg'); mask-image: url('/assets/icons/steam.svg'); }
 .logo-epic { -webkit-mask-image: url('/assets/icons/epicgames.svg'); mask-image: url('/assets/icons/epicgames.svg'); }
 .logo-gog { -webkit-mask-image: url('/assets/icons/gogdotcom.svg'); mask-image: url('/assets/icons/gogdotcom.svg'); }
 .logo-ubisoft { -webkit-mask-image: url('/assets/icons/ubisoft.svg'); mask-image: url('/assets/icons/ubisoft.svg'); }
 .logo-aliexpress { -webkit-mask-image: url('/assets/icons/aliexpress.svg'); mask-image: url('/assets/icons/aliexpress.svg'); }
+.logo-shopee { -webkit-mask-image: url('/assets/icons/shopee.svg'); mask-image: url('/assets/icons/shopee.svg'); }
 
 .modal-backdrop, .drawer-backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(7, 10, 11, .72); }
 .store-modal {
@@ -318,7 +320,8 @@ h1, h2, h3, .brand-name, .store-name {
 .store-picker-row:last-child { border-bottom: 0; }
 .store-picker-row input, .store-setting-row input { width: 17px; height: 17px; margin-left: auto; accent-color: var(--accent); }
 .store-picker-row .store-icon, .store-setting-row .store-icon { width: 34px; height: 34px; flex-basis: 34px; }
-.store-picker-name { color: var(--text); font-size: 13px; font-weight: 620; }
+.store-picker-name { display: grid; gap: 3px; color: var(--text); font-size: 13px; font-weight: 620; }
+.store-picker-name small { color: var(--muted); font-size: 9px; font-weight: 450; line-height: 1.35; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--window-muted); }
 
 .drawer { position: fixed; z-index: 22; top: 0; right: 0; width: min(840px, 100%); height: 100vh; background: var(--window); border-left: 1px solid var(--line-strong); box-shadow: -20px 0 60px var(--shadow); transform: translateX(101%); transition: transform 180ms ease; display: flex; flex-direction: column; }

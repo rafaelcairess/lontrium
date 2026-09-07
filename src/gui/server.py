@@ -110,6 +110,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             "/assets/icons/gogdotcom.svg": ("icons/gogdotcom.svg", "image/svg+xml"),
             "/assets/icons/ubisoft.svg": ("icons/ubisoft.svg", "image/svg+xml"),
             "/assets/icons/aliexpress.svg": ("icons/aliexpress.svg", "image/svg+xml"),
+            "/assets/icons/shopee.svg": ("icons/shopee.svg", "image/svg+xml"),
             "/assets/icons/lontrium.png": ("icons/lontrium.png", "image/png"),
             "/assets/fonts/newsreader-latin.woff2": ("fonts/newsreader-latin.woff2", "font/woff2"),
             "/assets/fonts/jetbrains-mono-latin.woff2": ("fonts/jetbrains-mono-latin.woff2", "font/woff2"),

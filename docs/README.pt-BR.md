@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **O Lontrium Control v1.0.1 já está disponível.** Baixe o instalador acima
+> **O Lontrium Control v1.1.0 já está disponível.** Baixe o instalador acima e confira o arquivo [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="images/05-dashboard.png" alt="Painel do Lontrium Control mostrando jogos e resultados do AliExpress" width="1100">
@@ -36,7 +36,7 @@
 ## O que ele faz
 
 - Resgata jogos, recursos e recompensas elegíveis nas lojas selecionadas.
-- Coleta a recompensa diária do AliExpress e mostra moedas, saldo e sequência.
+- Coleta moedas diárias do AliExpress e da Shopee e mostra o resultado e o saldo.
 - Informa o resultado real de cada execução, não apenas uma contagem genérica.
 - Executa por agendamento e pode iniciar automaticamente com o Windows.
 - Abre um navegador visual quando uma loja exige login ou confirmação manual.
@@ -46,9 +46,12 @@
 
 | Jogos e recursos | Recompensas e descoberta |
 |---|---|
-| Epic Games, Steam, GOG, Prime Gaming, Ubisoft, Fab e Unity Asset Store | Moedas diárias do AliExpress e descoberta de promoções pelo GamerPower |
+| Epic Games, Steam, GOG, Prime Gaming, Ubisoft, Fab e Unity Asset Store | Moedas diárias do AliExpress e da Shopee, além das promoções do GamerPower |
 
 O GamerPower também pode encaminhar promoções compatíveis do Fanatical, itch.io e IndieGala. A disponibilidade e os requisitos de login dependem de cada loja.
+
+> [!IMPORTANT]
+> **A Shopee exige um primeiro login manual pela opção _Entrar com Google_.** No teste real, a segurança da Shopee bloqueou o login direto dentro do navegador Docker, mas o login pelo Google funcionou. O Lontrium não tenta contornar essa proteção; depois do acesso pelo Google, o perfil persistente local reutiliza a sessão.
 
 ## Instale em três passos
 
@@ -77,7 +80,7 @@ As credenciais são opcionais e o login manual pelo navegador está sempre dispo
 
 ## Feito para ser claro
 
-Somente as lojas habilitadas aparecem no painel. Cada linha informa o que aconteceu: qual jogo foi resgatado, qual já estava na biblioteca, se não havia promoção ou quantas moedas do AliExpress foram coletadas.
+Somente as lojas habilitadas aparecem no painel. Cada linha informa o que aconteceu: qual jogo foi resgatado, qual já estava na biblioteca, se não havia promoção ou quantas moedas do AliExpress ou da Shopee foram coletadas.
 
 ### Configuração guiada da conta
 

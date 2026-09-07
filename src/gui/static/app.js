@@ -3,7 +3,7 @@ const storeGrid = document.querySelector('#storeGrid');
 const toast = document.querySelector('#toast');
 const supportedLocales = ['en', 'pt-BR', 'es'];
 const {normalizeLocale, detectLocale} = window.ClaimerI18n;
-const logoStores = new Set(['steam', 'epic', 'gog', 'ubisoft', 'aliexpress']);
+const logoStores = new Set(['steam', 'epic', 'gog', 'ubisoft', 'aliexpress', 'shopee']);
 const setupSteps = ['Language', 'Security', 'Stores', 'Accounts', 'Schedule', 'Review'];
 let translations = {};
 let currentLocale = 'en';
@@ -164,7 +164,7 @@ function createStoreRow(store, globalRunning) {
   title.textContent = store.name;
   const key = document.createElement('p');
   key.className = 'store-key';
-  key.textContent = store.key;
+  key.textContent = store.authNoteKey ? t(store.authNoteKey) : store.key;
   names.append(title, key);
   identity.append(createStoreIcon(store), names);
   const state = document.createElement('div');
@@ -187,7 +187,8 @@ function createStoreRow(store, globalRunning) {
   run.className = 'button run-store';
   run.type = 'button';
   run.textContent = t(store.state === 'running' ? 'status.runningButton' : 'status.run');
-  run.disabled = globalRunning;
+  const storeBusy = store.state === 'queued' || store.state === 'running';
+  run.disabled = storeBusy || (globalRunning && store.key !== 'shopee');
   run.addEventListener('click', () => runStores([store.key]));
   row.append(identity, state, lastRun, run);
   const details = createStoreDetails(store.details);
@@ -305,7 +306,14 @@ function renderStoreChoices(container, name, selected) {
     label.className = 'store-picker-row';
     const copy = document.createElement('span');
     copy.className = 'store-picker-name';
-    copy.textContent = store.name;
+    const storeName = document.createElement('span');
+    storeName.textContent = store.name;
+    copy.append(storeName);
+    if (store.authNoteKey) {
+      const note = document.createElement('small');
+      note.textContent = t(store.authNoteKey);
+      copy.append(note);
+    }
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.name = name;

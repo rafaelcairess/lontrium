@@ -309,7 +309,7 @@ function Wait-Panel {
 
 function Get-LatestReleaseTag {
     Write-Step $Script:Text.UpdateCheck
-    $release = Invoke-RestMethod -Uri $ReleaseApi -Headers @{Accept = "application/vnd.github+json"; "User-Agent" = "lontrium-launcher/1.0.1"} -TimeoutSec 15
+    $release = Invoke-RestMethod -Uri $ReleaseApi -Headers @{Accept = "application/vnd.github+json"; "User-Agent" = "lontrium-launcher/1.1.0"} -TimeoutSec 15
     $tag = [string]$release.tag_name
     if ($tag -notmatch "^v\d+\.\d+\.\d+$") { throw $Script:Text.UpdateInvalid }
     return $tag

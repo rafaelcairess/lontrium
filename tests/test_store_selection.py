@@ -39,8 +39,9 @@ class TestDefaultSelection:
 
     def test_new_stores_are_not_silently_left_out(self):
         # Anything in the registry is either a default or a deliberate opt-in.
-        # Unity is opt-in until its checkout works, it can find an asset but not buy it.
-        opt_in = {"unity"}
+        # Unity is opt-in until its checkout works; Shopee is opt-in because it only
+        # collects daily coins after the owner explicitly enables the store.
+        opt_in = {"unity", "shopee"}
         missing = sorted(set(_registry_keys()) - set(_default_stores()) - opt_in)
         assert not missing, (
             f"{missing} exist in ALL_CLAIMERS but run neither by default nor as a known opt-in. "

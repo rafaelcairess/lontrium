@@ -39,6 +39,7 @@ from src.core.database import (
 from src.core.selection import apply_run_selection
 from src.core.updates import get_update_status, notify_if_update_available
 from src.stores.aliexpress import claim_aliexpress
+from src.stores.shopee import claim_shopee
 from src.stores.epic import claim_epic
 from src.stores.epic_fab import claim_fab
 from src.stores.gamerpower import claim_gamerpower
@@ -71,8 +72,8 @@ class StorePrefixFilter(logging.Filter):
     def filter(self, record):
         if record.name.startswith("fgc."):
             store = record.name.split(".")[-1]
-            if store in ("epic", "steam", "gog", "prime", "aliexpress", "ubisoft", "fab", "unity"):
-                store_map = {"gog": "GOG", "epic": "Epic", "steam": "Steam", "prime": "Prime", "aliexpress": "AliExpress", "ubisoft": "Ubisoft", "fab": "Fab", "unity": "Unity"}
+            if store in ("epic", "steam", "gog", "prime", "aliexpress", "shopee", "ubisoft", "fab", "unity"):
+                store_map = {"gog": "GOG", "epic": "Epic", "steam": "Steam", "prime": "Prime", "aliexpress": "AliExpress", "shopee": "Shopee", "ubisoft": "Ubisoft", "fab": "Fab", "unity": "Unity"}
                 prefix = escape(f"[{store_map[store]}]")
                 # Prepend to the message template
                 record.msg = f"{prefix} {record.msg}"
@@ -130,6 +131,7 @@ ALL_CLAIMERS: dict[str, tuple[str, object]] = {
     "unity":      ("Unity",        claim_unity),
     "gamerpower": ("GamerPower",   claim_gamerpower),
     "aliexpress": ("AliExpress",   claim_aliexpress),
+    "shopee":     ("Shopee",       claim_shopee),
 }
 
 # What runs when neither the CLI nor STORES names anything. GamerPower goes last so the
@@ -168,6 +170,8 @@ _ALIASES: dict[str, str] = {
     "gp":            "gamerpower",
     "aliexpress":    "aliexpress",
     "ae":            "aliexpress",
+    "shopee":        "shopee",
+    "sh":            "shopee",
 }
 
 _FIXED_TIME_RE = re.compile(r"^\d{2}:\d{2}$")
@@ -178,6 +182,8 @@ _CLAIM_JOB_OPTIONS = {
 }
 _claim_run_lock = asyncio.Lock()
 _dashboard_run_task: asyncio.Task | None = None
+_dashboard_individual_tasks: set[asyncio.Task] = set()
+_dashboard_individual_stores: set[str] = set()
 
 
 def _parse_fixed_times(raw: str) -> list[tuple[int, int]]:
@@ -699,8 +705,6 @@ async def main() -> None:
             global _dashboard_run_task
             if cfg.gui_setup_required and not get_setup_state()["complete"]:
                 raise SettingsError("Complete local setup before running", "error.setupRequired")
-            if _claim_run_lock.locked() or (_dashboard_run_task and not _dashboard_run_task.done()):
-                return False
             if stores is not None:
                 if any(not isinstance(store, str) for store in stores):
                     raise ValueError("Seleção de lojas inválida")
@@ -708,6 +712,26 @@ async def main() -> None:
                 if not resolved or len(resolved) != len(set(stores)):
                     raise ValueError("Seleção de lojas inválida")
                 stores = resolved
+
+            busy = _claim_run_lock.locked() or (_dashboard_run_task and not _dashboard_run_task.done())
+            # Shopee has its own persistent browser profile and may need the owner
+            # waiting in VNC for a first login. An explicit Shopee action can run
+            # without waiting for an unrelated scheduled multi-store run.
+            if busy and stores == ["shopee"]:
+                if "shopee" in _dashboard_individual_stores:
+                    return False
+                _dashboard_individual_stores.add("shopee")
+                task = asyncio.create_task(run_claimers(stores))
+                _dashboard_individual_tasks.add(task)
+
+                def _release_individual(done: asyncio.Task) -> None:
+                    _dashboard_individual_tasks.discard(done)
+                    _dashboard_individual_stores.discard("shopee")
+
+                task.add_done_callback(_release_individual)
+                return True
+            if busy:
+                return False
             _dashboard_run_task = asyncio.create_task(run_claimers_scheduled(stores))
             return True
 

@@ -22,6 +22,7 @@
     "allActive": "All available stores are active", "choose": "Choose stores", "chooseCopy": "Select the stores shown on the dashboard and included in scheduling.",
     "save": "Save stores", "updated": "Stores updated.", "selectOne": "Select at least one store.", "runStarted": "Store run started.", "allStarted": "Store runs started."
   },
+  "storeAuth": {"shopee": "Manual login: use Continue with Google (direct login is blocked by Shopee security)."},
   "status": {
     "waiting": "Waiting for a run", "queued": "Queued", "runningNow": "Running now", "failed": "Last run failed",
     "completedNoChanges": "Completed with no changes", "resultGames": "Run details", "resultCoins": "Coin check-in details",
