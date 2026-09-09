@@ -30,7 +30,7 @@
 > **Lontrium Control v1.1.0 ya está disponible.** Descarga el instalador de arriba y verifícalo con [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
-  <img src="images/05-dashboard.png" alt="Panel de Lontrium Control con resultados de juegos y AliExpress" width="1100">
+  <img src="images/05-dashboard.png" alt="Panel de Lontrium Control con resultados de juegos, AliExpress y Shopee" width="1100">
 </p>
 
 ## Qué hace
@@ -41,6 +41,7 @@
 - Funciona con un horario y puede iniciarse automáticamente con Windows.
 - Abre un navegador visual cuando una tienda requiere inicio de sesión o confirmación manual.
 - Mantiene el panel, la configuración, la base de datos y las sesiones en tu computadora.
+- Conserva durante 90 días un historial saneado que permanece tras reinicios y actualizaciones.
 
 ## Servicios compatibles
 
@@ -57,11 +58,37 @@ GamerPower también puede enviar promociones compatibles de Fanatical, itch.io e
 
 1. Descarga `Lontrium-Setup.exe` desde la [Release más reciente](https://github.com/rafaelcairess/lontrium/releases).
 2. Ejecuta el instalador. Si falta Docker Desktop, el launcher explica por qué es necesario y solo lo instala desde la fuente oficial después de tu confirmación.
-3. Sigue el asistente local: elige idioma y tiendas, añade credenciales si lo deseas y configura el horario.
+3. Sigue el asistente local. Recomienda iniciar sesión en el navegador, muestra solo las opciones de las tiendas elegidas y ofrece rutinas sencillas de automatización.
 
 Eso es todo. No necesitas clonar el repositorio, editar archivos de configuración ni escribir comandos de Docker.
 
 El instalador puede solicitar permisos de administrador o reiniciar Windows mientras instala Docker Desktop. Como el primer instalador no estará firmado, Windows SmartScreen puede mostrar un aviso de editor desconocido. Cada Release incluye `SHA256SUMS.txt` para comprobar la descarga.
+
+## Primera configuración
+
+El asistente presenta seis decisiones prácticas sin exigir conocimientos de variables de entorno:
+
+1. **Idioma** — detectado desde Windows/navegador, con inglés, portugués de Brasil y español.
+2. **Tiendas** — solo las seleccionadas aparecen en el panel y participan en las ejecuciones.
+3. **Inicio de sesión** — el navegador es la opción recomendada; guardar credenciales localmente es opcional.
+4. **Cuentas** — con el navegador no se solicita ninguna contraseña. En el otro modo solo aparecen campos de las tiendas elegidas.
+5. **Automatización** — elige ejecutar al iniciar Lontrium y a diario, solo a diario o solo manualmente.
+6. **Revisión** — confirma dónde quedan los datos y explica el siguiente paso.
+
+Después de **Finalizar y ejecutar**, el panel abre las tiendas elegidas. Cuando una necesite autenticación, abre **Navegador** e inicia sesión en el sitio oficial. El perfil persistente reutiliza la sesión hasta que la propia tienda la caduque.
+
+## Cómo funciona
+
+```text
+Acceso directo → Docker Desktop → contenedor local
+                                    ├─ panel en 127.0.0.1:8080
+                                    ├─ navegador visual en 127.0.0.1:7080
+                                    ├─ módulos de tiendas seleccionadas
+                                    └─ volumen local persistente
+                                       (configuración, sesiones e historial)
+```
+
+Cada módulo abre el sitio oficial, comprueba la oferta o recompensa y guarda un resultado estructurado. Los juegos muestran título y resultado; AliExpress y Shopee muestran monedas y los datos de saldo o racha disponibles. CAPTCHA, antifraude y verificaciones de cuenta vuelven al usuario en el navegador visual y nunca se eluden.
 
 ## Tus datos permanecen en tu computadora
 
@@ -82,7 +109,7 @@ Las credenciales son opcionales y el acceso manual mediante el navegador siempre
 
 Solo las tiendas habilitadas aparecen en el panel. Cada fila explica qué ocurrió: qué juego fue reclamado, cuál ya estaba en la biblioteca, si no había promoción o cuántas monedas de AliExpress o Shopee fueron recogidas.
 
-### Configuración guiada de la cuenta
+### Configuración guiada
 
 <p align="center">
   <img src="images/04-credentials.png" alt="Campo de credenciales con explicación de privacidad" width="1000">
@@ -94,7 +121,7 @@ Solo las tiendas habilitadas aparecen en el panel. Cada fila explica qué ocurri
   <img src="images/06-aliexpress.png" alt="Monedas diarias, saldo y racha de AliExpress" width="1000">
 </p>
 
-Cada credencial tiene una explicación accesible en el botón `?`. La interfaz funciona con ratón, teclado y toque, y está completamente traducida al inglés, portugués de Brasil y español.
+El inicio de sesión en el navegador es la opción recomendada, por lo que el asistente no solicita contraseñas sin una elección explícita. Cada credencial tiene una explicación accesible en el botón `?`. La interfaz funciona con ratón, teclado y toque, y está completamente traducida al inglés, portugués de Brasil y español.
 
 ## Uso diario
 
@@ -103,6 +130,8 @@ Cada credencial tiene una explicación accesible en el botón `?`. La interfaz f
 - Usa **Navegador** cuando una tienda solicite acceso, CAPTCHA o confirmación manual.
 - Usa **Configuración** para cambiar tiendas, cuentas, notificaciones y horarios.
 - Las actualizaciones se ofrecen en el panel y conservan el volumen local.
+
+Al actualizar una instalación antigua, el launcher puede preguntar si debe reutilizar cuentas y sesiones existentes. Elige **Sí**, salvo que quieras un perfil limpio. Se sustituye el contenedor, pero se conserva el volumen persistente seleccionado.
 
 El acceso directo normal comprueba Docker, inicia el servicio, espera al panel y lo abre automáticamente. Para el inicio con Windows, el instalador ofrece el modo económico (predeterminado), que espera la ejecución y libera la memoria WSL de Docker, o el modo panel, que mantiene disponible el panel local. Al desinstalar Lontrium Control se conservan las cuentas y sesiones por defecto; borrar los datos locales es una opción separada y explícita. Docker Desktop nunca se elimina automáticamente.
 

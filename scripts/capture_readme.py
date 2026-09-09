@@ -27,7 +27,7 @@ async def main() -> None:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     browser = await uc.start(
         headless=True,
-        browser_args=["--window-size=1440,900", "--force-device-scale-factor=1"],
+        browser_args=["--window-size=1440,1050", "--force-device-scale-factor=1"],
     )
     try:
         page = await browser.get(URL)
@@ -36,6 +36,7 @@ async def main() -> None:
         await page.sleep(1)
         await click(page, "#setupNext")
         await click(page, "#setupNext")
+        await click(page, 'input[name="setup-login-mode"][value="credentials"]')
         await click(page, "#setupNext")
         await click(page, ".help-button")
         await shot(page, "04-credentials.png")

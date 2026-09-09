@@ -17,7 +17,17 @@
     return 'en';
   }
 
-  const api = {normalizeLocale, detectLocale};
+  function setupScheduleValues(mode, dailyTime = '12:00') {
+    const safeMode = ['startup', 'daily', 'manual'].includes(mode) ? mode : 'startup';
+    const safeTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(dailyTime)) ? String(dailyTime) : '12:00';
+    return {
+      SCHEDULER_HOURS: 0,
+      SCHEDULER_FIXED_TIMES: safeMode === 'manual' ? '' : safeTime,
+      RUN_ON_STARTUP: safeMode === 'startup',
+    };
+  }
+
+  const api = {normalizeLocale, detectLocale, setupScheduleValues};
   root.ClaimerI18n = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 }(typeof window === 'undefined' ? globalThis : window));

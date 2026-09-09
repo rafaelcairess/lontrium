@@ -33,8 +33,10 @@ async def check_locale(page, locale: str) -> None:
     assert result["title"]
     assert result["fits"]
 
-    for _ in range(3):
-        await click(page, "#setupNext")
+    await click(page, "#setupNext")
+    await click(page, "#setupNext")
+    await click(page, 'input[name="setup-login-mode"][value="credentials"]')
+    await click(page, "#setupNext")
     await click(page, ".help-button")
     tooltip = json.loads(await page.evaluate("""
       JSON.stringify((() => {
@@ -58,6 +60,25 @@ async def check_locale(page, locale: str) -> None:
     assert tooltip["fits"]
 
 
+async def check_settings_navigation(page) -> None:
+    await page.evaluate("location.reload()")
+    await page.sleep(0.5)
+    for _ in range(6):
+        await click(page, "#setupNext")
+    await click(page, "#settingsButton")
+    result = json.loads(await page.evaluate("""
+      JSON.stringify({
+        items: document.querySelectorAll('.settings-nav-item').length,
+        icons: document.querySelectorAll('.settings-nav-item .store-icon, .settings-nav-item .settings-nav-symbol').length,
+        storeLogos: document.querySelectorAll('.settings-nav-item .store-logo').length,
+        fits: document.querySelector('#settingsDrawer').scrollWidth <= window.innerWidth
+      })
+    """))
+    assert result["items"] == result["icons"]
+    assert result["storeLogos"] > 0
+    assert result["fits"]
+
+
 async def main() -> None:
     for viewport in ("1440,900", "390,844"):
         browser = await uc.start(
@@ -69,6 +90,7 @@ async def main() -> None:
             await page.sleep(0.5)
             for locale in LOCALES:
                 await check_locale(page, locale)
+            await check_settings_navigation(page)
         finally:
             browser.stop()
     print("Visual smoke test passed for en, pt-BR and es at desktop and mobile widths.")

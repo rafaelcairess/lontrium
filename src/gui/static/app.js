@@ -2,9 +2,9 @@ const token = document.querySelector('meta[name="fgc-token"]').content;
 const storeGrid = document.querySelector('#storeGrid');
 const toast = document.querySelector('#toast');
 const supportedLocales = ['en', 'pt-BR', 'es'];
-const {normalizeLocale, detectLocale} = window.ClaimerI18n;
+const {normalizeLocale, detectLocale, setupScheduleValues} = window.ClaimerI18n;
 const logoStores = new Set(['steam', 'epic', 'gog', 'ubisoft', 'aliexpress', 'shopee']);
-const setupSteps = ['Language', 'Security', 'Stores', 'Accounts', 'Schedule', 'Review'];
+const setupSteps = ['Language', 'Stores', 'Security', 'Accounts', 'Schedule', 'Review'];
 let translations = {};
 let currentLocale = 'en';
 let latestStatus = null;
@@ -13,6 +13,8 @@ let latestUpdate = null;
 let activeSettingsSection = 'section.stores';
 let setupStep = 0;
 let setupValues = {};
+let setupLoginMode = 'browser';
+let setupScheduleMode = 'startup';
 let statusPollTimer = null;
 
 function detectedLocale() {
@@ -461,7 +463,20 @@ function renderSettings(config) {
     button.className = 'settings-nav-item';
     button.type = 'button';
     button.dataset.section = panel.dataset.section;
-    button.textContent = t(panel.dataset.section);
+    const key = panel.dataset.section.replace('section.', '');
+    const store = latestStatus?.stores.find(item => item.key === key);
+    if (store) {
+      button.append(createStoreIcon(store));
+    } else {
+      const icon = document.createElement('span');
+      icon.className = 'settings-nav-symbol';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = {stores: '▦', schedule: '◷', browser: '◎', notifications: '◇'}[key] || '·';
+      button.append(icon);
+    }
+    const label = document.createElement('span');
+    label.textContent = t(panel.dataset.section);
+    button.append(label);
     button.addEventListener('click', () => activateSettingsSection(panel.dataset.section));
     return button;
   });
@@ -520,6 +535,41 @@ function captureSetupStep() {
   }
   const stores = [...form.querySelectorAll('input[data-setting-key="STORES"]:checked')].map(input => input.value);
   if (form.querySelector('input[data-setting-key="STORES"]')) setupValues.STORES = stores;
+  const loginMode = form.querySelector('input[name="setup-login-mode"]:checked');
+  if (loginMode) setupLoginMode = loginMode.value;
+  const scheduleMode = form.querySelector('input[name="setup-schedule-mode"]:checked');
+  if (scheduleMode) {
+    setupScheduleMode = scheduleMode.value;
+    const dailyTime = form.querySelector('#setup-daily-time')?.value || '12:00';
+    Object.assign(setupValues, setupScheduleValues(setupScheduleMode, dailyTime));
+  }
+}
+
+function setupChoice(name, value, titleKey, copyKey, selected, badgeKey = '') {
+  const label = document.createElement('label');
+  label.className = `setup-choice${selected ? ' selected' : ''}`;
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = name;
+  input.value = value;
+  input.checked = selected;
+  const copy = document.createElement('span');
+  const heading = document.createElement('strong');
+  heading.textContent = t(titleKey);
+  if (badgeKey) {
+    const badge = document.createElement('small');
+    badge.className = 'setup-choice-badge';
+    badge.textContent = t(badgeKey);
+    heading.append(badge);
+  }
+  const description = document.createElement('span');
+  description.textContent = t(copyKey);
+  copy.append(heading, description);
+  label.append(input, copy);
+  input.addEventListener('change', () => {
+    for (const choice of label.parentElement.querySelectorAll('.setup-choice')) choice.classList.toggle('selected', choice.querySelector('input').checked);
+  });
+  return label;
 }
 
 function setupHeader(titleKey, copyKey) {
@@ -552,13 +602,26 @@ function setupLanguagePage() {
 
 function setupSecurityPage() {
   const page = document.createElement('section');
-  page.append(setupHeader('onboarding.securityTitle', 'onboarding.securityCopy'));
+  page.append(setupHeader('onboarding.loginTitle', 'onboarding.loginCopy'));
+  const choices = document.createElement('div');
+  choices.className = 'setup-choice-list';
+  const credentialsAvailable = selectedCredentialSpecs().length > 0;
+  if (!credentialsAvailable) setupLoginMode = 'browser';
+  choices.append(setupChoice('setup-login-mode', 'browser', 'onboarding.browserLoginTitle', 'onboarding.browserLoginCopy', setupLoginMode === 'browser', 'onboarding.recommended'));
+  if (credentialsAvailable) choices.append(setupChoice('setup-login-mode', 'credentials', 'onboarding.credentialsLoginTitle', 'onboarding.credentialsLoginCopy', setupLoginMode === 'credentials'));
+  page.append(choices);
   const card = document.createElement('div');
   card.className = 'security-detail-card';
-  for (const key of ['security.title', 'security.summary', 'security.honest', 'security.notEncrypted', 'security.scope']) {
+  for (const key of ['security.title', 'security.summary', 'security.notEncrypted']) {
     const paragraph = document.createElement(key === 'security.title' ? 'h3' : 'p');
     paragraph.textContent = t(key);
     card.append(paragraph);
+  }
+  if (setupSelectedStores().includes('shopee')) {
+    const note = document.createElement('p');
+    note.className = 'setup-important';
+    note.textContent = t('storeAuth.shopee');
+    card.append(note);
   }
   page.append(card);
   return page;
@@ -587,11 +650,29 @@ function credentialSectionKeys() {
   return sections;
 }
 
+function selectedCredentialSpecs() {
+  const sections = credentialSectionKeys();
+  return latestConfig.schema.filter(spec => spec.credentialPurposeKey && sections.has(spec.sectionKey));
+}
+
 function setupAccountsPage() {
   const page = document.createElement('section');
   page.append(setupHeader('onboarding.accountsTitle', 'onboarding.accountsCopy'));
-  const sections = credentialSectionKeys();
-  const specs = latestConfig.schema.filter(spec => spec.credentialPurposeKey && sections.has(spec.sectionKey));
+  if (setupLoginMode === 'browser') {
+    const card = document.createElement('div');
+    card.className = 'setup-plan-card';
+    const title = document.createElement('h3');
+    title.textContent = t('onboarding.manualPlanTitle');
+    const copy = document.createElement('p');
+    copy.textContent = t('onboarding.manualPlanCopy');
+    const stores = document.createElement('p');
+    stores.className = 'setup-plan-stores';
+    stores.textContent = setupSelectedStores().map(key => latestStatus.stores.find(store => store.key === key)?.name || key).join(' · ');
+    card.append(title, copy, stores);
+    page.append(card);
+    return page;
+  }
+  const specs = selectedCredentialSpecs();
   const grid = document.createElement('div');
   grid.className = 'field-grid setup-fields';
   for (const spec of specs) {
@@ -607,13 +688,33 @@ function setupAccountsPage() {
 function setupSchedulePage() {
   const page = document.createElement('section');
   page.append(setupHeader('onboarding.scheduleTitle', 'onboarding.scheduleCopy'));
-  const wanted = new Set(['SCHEDULER_HOURS', 'SCHEDULER_FIXED_TIMES', 'SCHEDULER_TIMEZONE', 'RUN_ON_STARTUP']);
-  const grid = document.createElement('div');
-  grid.className = 'field-grid setup-fields';
-  for (const spec of latestConfig.schema.filter(item => wanted.has(item.key))) {
-    grid.append(createInput(spec, setupValues[spec.key], latestConfig.configured[spec.key], 'setup-'));
-  }
-  page.append(grid);
+  const choices = document.createElement('div');
+  choices.className = 'setup-choice-list';
+  choices.append(
+    setupChoice('setup-schedule-mode', 'startup', 'onboarding.scheduleStartupTitle', 'onboarding.scheduleStartupCopy', setupScheduleMode === 'startup', 'onboarding.recommended'),
+    setupChoice('setup-schedule-mode', 'daily', 'onboarding.scheduleDailyTitle', 'onboarding.scheduleDailyCopy', setupScheduleMode === 'daily'),
+    setupChoice('setup-schedule-mode', 'manual', 'onboarding.scheduleManualTitle', 'onboarding.scheduleManualCopy', setupScheduleMode === 'manual'),
+  );
+  const timeField = document.createElement('label');
+  timeField.className = 'setup-time-field';
+  const timeLabel = document.createElement('span');
+  timeLabel.textContent = t('onboarding.dailyTime');
+  const time = document.createElement('input');
+  time.type = 'time';
+  time.id = 'setup-daily-time';
+  time.value = String(setupValues.SCHEDULER_FIXED_TIMES || '12:00').split(',')[0];
+  timeField.append(timeLabel, time);
+  const timezone = document.createElement('p');
+  timezone.className = 'setup-timezone';
+  timezone.textContent = t('onboarding.timezone', {timezone: setupValues.SCHEDULER_TIMEZONE});
+  const syncTimeState = () => {
+    const selected = choices.querySelector('input[name="setup-schedule-mode"]:checked')?.value;
+    time.disabled = selected === 'manual';
+    timeField.classList.toggle('disabled', time.disabled);
+  };
+  for (const input of choices.querySelectorAll('input')) input.addEventListener('change', syncTimeState);
+  syncTimeState();
+  page.append(choices, timeField, timezone);
   return page;
 }
 
@@ -626,9 +727,11 @@ function setupReviewPage() {
   const entered = Object.entries(setupValues).filter(([key, value]) => latestConfig.schema.some(spec => spec.key === key && spec.secret) && value).length;
   const rows = [
     [t('onboarding.selectedStores'), selected.map(key => latestStatus.stores.find(store => store.key === key)?.name || key).join(', ')],
-    [t('onboarding.credentialsConfigured'), String(entered)],
-    [t('onboarding.interval'), Number(setupValues.SCHEDULER_HOURS) > 0 ? t('onboarding.hours', {count: setupValues.SCHEDULER_HOURS}) : t('onboarding.manualSchedule')],
+    [t('onboarding.loginMethod'), t(setupLoginMode === 'browser' ? 'onboarding.browserLoginTitle' : 'onboarding.credentialsLoginTitle')],
+    [t('onboarding.credentialsConfigured'), setupLoginMode === 'browser' ? t('onboarding.noneStoredNow') : String(entered)],
+    [t('onboarding.automation'), t(`onboarding.schedule${setupScheduleMode[0].toUpperCase()}${setupScheduleMode.slice(1)}Title`)],
     [t('security.title'), t('onboarding.localOnly')],
+    [t('onboarding.nextStep'), t(setupLoginMode === 'browser' ? 'onboarding.nextManualLogin' : 'onboarding.nextRun')],
   ];
   for (const [term, description] of rows) {
     const group = document.createElement('div');
@@ -655,7 +758,7 @@ function renderOnboarding() {
     return item;
   });
   document.querySelector('#onboardingSteps').replaceChildren(...steps);
-  const factories = [setupLanguagePage, setupSecurityPage, setupStoresPage, setupAccountsPage, setupSchedulePage, setupReviewPage];
+  const factories = [setupLanguagePage, setupStoresPage, setupSecurityPage, setupAccountsPage, setupSchedulePage, setupReviewPage];
   const content = document.querySelector('#onboardingContent');
   content.replaceChildren(factories[setupStep]());
   content.scrollTo({top: 0, left: 0});
@@ -665,7 +768,7 @@ function renderOnboarding() {
 
 async function nextSetupStep() {
   captureSetupStep();
-  if (setupStep === 2 && setupSelectedStores().length === 0) return showToast(t('store.selectOne'), true);
+  if (setupStep === 1 && setupSelectedStores().length === 0) return showToast(t('store.selectOne'), true);
   if (setupStep < setupSteps.length - 1) {
     setupStep += 1;
     renderOnboarding();
@@ -716,6 +819,8 @@ async function initialise() {
   latestStatus = await api('/api/status');
   latestConfig = await api('/api/config');
   setupValues = {...latestConfig.values, STORES: [...latestConfig.values.STORES]};
+  if (!setupValues.RUN_ON_STARTUP && !setupValues.SCHEDULER_FIXED_TIMES && Number(setupValues.SCHEDULER_HOURS) === 0) setupScheduleMode = 'manual';
+  else if (!setupValues.RUN_ON_STARTUP) setupScheduleMode = 'daily';
   renderStatus(latestStatus);
   if (latestConfig.setup.required && !latestConfig.setup.complete) {
     document.querySelector('#onboarding').hidden = false;

@@ -11,7 +11,6 @@ from src.gui.state import STORE_META
 
 
 async def main() -> None:
-    setup_complete = False
     now = datetime.now(timezone.utc)
 
     async def status() -> dict:
@@ -20,7 +19,7 @@ async def main() -> None:
             store = {
                 **meta,
                 "key": key,
-                "enabled": key in {"epic", "gog", "aliexpress"},
+                "enabled": key in {"epic", "gog", "aliexpress", "shopee"},
                 "state": "idle",
                 "message": "Waiting for a run",
                 "messageKey": "status.waiting",
@@ -61,6 +60,21 @@ async def main() -> None:
                         "tomorrowCoins": 18,
                     },
                 )
+            elif key == "shopee":
+                store.update(
+                    state="success",
+                    messageKey="status.resultCoins",
+                    lastRun=(now - timedelta(minutes=10)).isoformat(),
+                    details={
+                        "kind": "coins",
+                        "outcome": "collected",
+                        "claimedCoins": 3,
+                        "offeredCoins": 3,
+                        "balance": 6,
+                        "streakDays": None,
+                        "tomorrowCoins": None,
+                    },
+                )
             stores.append(store)
         return {
             "running": False,
@@ -72,7 +86,7 @@ async def main() -> None:
 
     async def config() -> dict:
         values = {
-            "STORES": ["epic", "gog", "aliexpress"],
+            "STORES": ["epic", "gog", "aliexpress", "shopee"],
             "SCHEDULER_HOURS": 12,
             "SCHEDULER_FIXED_TIMES": "",
             "SCHEDULER_TIMEZONE": "America/Sao_Paulo",
@@ -100,15 +114,13 @@ async def main() -> None:
             "schema": [spec.public() for spec in SPECS],
             "values": values,
             "configured": {spec.key: False for spec in SPECS if spec.secret},
-            "setup": {"required": True, "complete": setup_complete},
+            "setup": {"required": True, "complete": False},
         }
 
     async def save(_values: dict) -> dict:
         return {"changed": [], "restartRequired": []}
 
     async def setup(_values: dict) -> dict:
-        nonlocal setup_complete
-        setup_complete = True
         return {"changed": [], "restartRequired": [], "setup": {"required": True, "complete": True}}
 
     async def update() -> dict:

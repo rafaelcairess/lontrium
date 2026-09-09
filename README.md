@@ -30,7 +30,7 @@
 > **Lontrium Control v1.1.0 is available now.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
-  <img src="docs/images/05-dashboard.png" alt="Lontrium Control dashboard showing game and AliExpress results" width="1100">
+  <img src="docs/images/05-dashboard.png" alt="Lontrium Control dashboard showing game, AliExpress and Shopee results" width="1100">
 </p>
 
 ## What it does
@@ -41,14 +41,22 @@
 - Runs on a schedule and can start automatically with Windows.
 - Opens a visual browser whenever a store requires manual login or confirmation.
 - Keeps the dashboard, settings, database and browser sessions on your computer.
+- Preserves a privacy-safe 90-day activity history across container restarts and app updates.
+- Lets each store run independently, so a login wait in one store does not hide the controls for another supported independent run.
 
 ## Supported services
 
-| Games and assets | Rewards and discovery |
-|---|---|
-| Epic Games, Steam, GOG, Prime Gaming, Ubisoft, Fab and Unity Asset Store | AliExpress and Shopee daily coins, plus GamerPower giveaway discovery |
+| Service | What Lontrium checks | First login |
+|---|---|---|
+| Epic Games | Free PC games and eligible Android/iOS offers | Saved credentials or visual browser |
+| GOG | Current giveaways | Saved credentials or visual browser |
+| Prime Gaming | Included games and supported redemption flows | Saved credentials or visual browser |
+| Steam, Ubisoft, Fab and Unity | Supported free offers and assets | Depends on the store flow |
+| AliExpress | Daily coin check-in, reward, balance and streak | Saved credentials or visual browser |
+| Shopee | Daily coin check-in and balance | **Visual browser with Continue with Google** |
+| GamerPower | Giveaway discovery and compatible partner claims | Depends on the destination store |
 
-GamerPower can also route compatible giveaways from Fanatical, itch.io and IndieGala. Availability and login requirements are controlled by each store.
+GamerPower can route compatible giveaways from Fanatical, itch.io and IndieGala. Store availability, regional offers and authentication requirements are controlled by each official service.
 
 > [!IMPORTANT]
 > **Shopee requires a one-time manual login through _Continue with Google_.** In our live test, Shopee's security rejected direct account login inside the Docker browser, while Google login succeeded. Lontrium does not attempt to bypass that protection; after the Google login, the local persistent browser profile reuses the session.
@@ -57,11 +65,44 @@ GamerPower can also route compatible giveaways from Fanatical, itch.io and Indie
 
 1. Download `Lontrium-Setup.exe` from the [latest Release](https://github.com/rafaelcairess/lontrium/releases).
 2. Run it. If Docker Desktop is missing, the launcher explains why it is needed and installs it from Docker's official source only after your confirmation.
-3. Follow the local setup assistant: choose a language, select your stores, optionally add credentials, and define the schedule.
+3. Follow the local setup assistant. It recommends browser login, shows only settings relevant to your selected stores and offers simple automation presets.
 
 That is all. You do not need to clone the repository, edit configuration files or type Docker commands.
 
 The installer may request administrator permission or a Windows restart while Docker Desktop is installed. Because the first installer is unsigned, Windows SmartScreen may display an unknown-publisher warning. Every Release includes `SHA256SUMS.txt` so the download can be verified.
+
+## First-time setup
+
+The assistant asks six practical questions instead of exposing the full environment configuration:
+
+1. **Language** — automatically detected from Windows/browser; English, Brazilian Portuguese and Spanish are available.
+2. **Stores** — only selected stores appear on the dashboard or participate in scheduled runs.
+3. **Login method** — browser login is recommended; saving supported credentials locally remains optional.
+4. **Accounts** — when browser login is selected, no password is requested. Otherwise, only fields for selected stores are shown.
+5. **Automation** — choose a run when Lontrium starts plus a daily time, daily only, or manual only. Advanced intervals remain in Settings.
+6. **Review** — confirms where data stays and explains exactly what will happen after finishing.
+
+After **Finish and run**, Lontrium opens the dashboard and starts the selected services. If a store needs authentication, open **Browser**, finish the login on the official page and return to the dashboard. The browser profile is persistent, so this is normally required only on first use or after the store expires its own session.
+
+## How it works
+
+```text
+Windows shortcut
+      │
+      ├─ checks/starts Docker Desktop
+      ├─ pulls the selected Lontrium image
+      └─ starts the local container
+                 │
+                 ├─ dashboard → http://127.0.0.1:8080
+                 ├─ visual browser → http://127.0.0.1:7080
+                 ├─ scheduler → runs only enabled stores
+                 └─ local volume
+                       ├─ settings and optional credentials
+                       ├─ separate browser profile per store
+                       └─ sanitized 90-day result history
+```
+
+Each store module opens the corresponding official website, checks the current offer or reward and records a structured result. Games show their titles and outcomes. AliExpress and Shopee show collected coins and any balance/streak information the official page exposes. CAPTCHA, anti-fraud and account verification are handed back to the user in the visual browser; Lontrium never attempts to bypass them.
 
 ## Your data stays local
 
@@ -82,7 +123,7 @@ Credentials are optional; manual browser login is always available. Locally save
 
 Only enabled stores appear on the dashboard. Each row reports what happened: which game was claimed, which one was already owned, whether no giveaway was available, or how many AliExpress or Shopee coins were collected.
 
-### Guided account setup
+### Guided setup
 
 <p align="center">
   <img src="docs/images/04-credentials.png" alt="Credential field with its privacy explanation" width="1000">
@@ -94,7 +135,7 @@ Only enabled stores appear on the dashboard. Each row reports what happened: whi
   <img src="docs/images/06-aliexpress.png" alt="AliExpress daily coins, balance and streak" width="1000">
 </p>
 
-Every credential field includes an accessible `?` explanation. The interface supports mouse, keyboard and touch, and is fully translated into English, Brazilian Portuguese and Spanish.
+Browser login is the recommended default, so the assistant does not request passwords unless the user explicitly selects local credential storage. Every credential field includes an accessible `?` explanation. The interface supports mouse, keyboard and touch, and is fully translated into English, Brazilian Portuguese and Spanish.
 
 ## Daily use
 
@@ -103,6 +144,8 @@ Every credential field includes an accessible `?` explanation. The interface sup
 - Use **Browser** when a store asks for login, CAPTCHA or manual confirmation.
 - Use **Settings** to change stores, accounts, notifications or scheduling.
 - Updates are offered in the dashboard and preserve the local volume.
+
+When upgrading from the older Free Games Claimer layout, the launcher may ask whether it should reuse existing local accounts and sessions. Choose **Yes** unless you intentionally want a clean profile. Lontrium changes the container and application image, not the selected persistent data volume.
 
 The normal Windows shortcut checks Docker, starts the service, waits for the dashboard and opens it automatically. For Windows sign-in, the installer offers economy mode (the default), which waits for the claim run and releases Docker's WSL memory, or dashboard mode, which keeps the local panel available. Uninstalling Lontrium Control keeps accounts and sessions by default; deleting local data is a separate, explicit option. Docker Desktop is never removed automatically.
 

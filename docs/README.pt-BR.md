@@ -30,7 +30,7 @@
 > **O Lontrium Control v1.1.0 já está disponível.** Baixe o instalador acima e confira o arquivo [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
-  <img src="images/05-dashboard.png" alt="Painel do Lontrium Control mostrando jogos e resultados do AliExpress" width="1100">
+  <img src="images/05-dashboard.png" alt="Painel do Lontrium Control mostrando jogos e resultados do AliExpress e da Shopee" width="1100">
 </p>
 
 ## O que ele faz
@@ -41,6 +41,7 @@
 - Executa por agendamento e pode iniciar automaticamente com o Windows.
 - Abre um navegador visual quando uma loja exige login ou confirmação manual.
 - Mantém painel, configurações, banco e sessões do navegador no seu computador.
+- Guarda por 90 dias um histórico sanitizado que continua disponível após reinícios e atualizações.
 
 ## Serviços compatíveis
 
@@ -57,11 +58,37 @@ O GamerPower também pode encaminhar promoções compatíveis do Fanatical, itch
 
 1. Baixe `Lontrium-Setup.exe` na [Release mais recente](https://github.com/rafaelcairess/lontrium/releases).
 2. Execute o instalador. Se o Docker Desktop não estiver presente, o launcher explica por que ele é necessário e só instala pela fonte oficial após sua confirmação.
-3. Siga o assistente local: escolha o idioma e as lojas, adicione credenciais se desejar e defina o agendamento.
+3. Siga o assistente local. Ele recomenda login pelo navegador, mostra apenas opções das lojas escolhidas e oferece rotinas simples de automação.
 
 Pronto. Você não precisa clonar o repositório, editar arquivos de configuração ou digitar comandos Docker.
 
 O instalador pode solicitar permissão de administrador ou uma reinicialização durante a instalação do Docker Desktop. Como o primeiro instalador não será assinado, o Windows SmartScreen poderá mostrar um aviso de editor desconhecido. Cada Release inclui `SHA256SUMS.txt` para verificar o download.
+
+## Primeira configuração
+
+O assistente faz seis escolhas práticas, sem exigir que o usuário entenda variáveis de ambiente:
+
+1. **Idioma** — detectado do Windows/navegador, com português, inglês e espanhol.
+2. **Lojas** — somente as selecionadas aparecem no painel e participam das execuções.
+3. **Login** — entrar pelo navegador é o modo recomendado; salvar credenciais localmente é opcional.
+4. **Contas** — no login pelo navegador, nenhuma senha é solicitada. No outro modo, aparecem apenas os campos das lojas escolhidas.
+5. **Automação** — escolha executar ao iniciar o Lontrium e diariamente, somente diariamente ou somente manual.
+6. **Revisão** — confirma onde os dados ficam e explica o próximo passo.
+
+Depois de **Concluir e executar**, o painel abre e inicia as lojas escolhidas. Quando alguma delas pedir autenticação, abra **Navegador** e faça o login no site oficial. O perfil persistente reutiliza essa sessão até que a própria loja a expire.
+
+## Como funciona
+
+```text
+Atalho do Windows → Docker Desktop → container local
+                                      ├─ painel em 127.0.0.1:8080
+                                      ├─ navegador visual em 127.0.0.1:7080
+                                      ├─ módulos das lojas selecionadas
+                                      └─ volume local persistente
+                                         (configurações, sessões e histórico)
+```
+
+Cada módulo abre o site oficial, verifica a oferta ou recompensa e salva um resultado estruturado. Jogos mostram título e resultado; AliExpress e Shopee mostram moedas e os dados de saldo ou sequência disponibilizados pela página. CAPTCHA, antifraude e verificações de conta são devolvidos ao usuário no navegador visual e nunca são contornados.
 
 ## Seus dados ficam no seu computador
 
@@ -82,7 +109,7 @@ As credenciais são opcionais e o login manual pelo navegador está sempre dispo
 
 Somente as lojas habilitadas aparecem no painel. Cada linha informa o que aconteceu: qual jogo foi resgatado, qual já estava na biblioteca, se não havia promoção ou quantas moedas do AliExpress ou da Shopee foram coletadas.
 
-### Configuração guiada da conta
+### Configuração guiada
 
 <p align="center">
   <img src="images/04-credentials.png" alt="Campo de credencial com explicação de privacidade" width="1000">
@@ -94,7 +121,7 @@ Somente as lojas habilitadas aparecem no painel. Cada linha informa o que aconte
   <img src="images/06-aliexpress.png" alt="Moedas diárias, saldo e sequência do AliExpress" width="1000">
 </p>
 
-Cada credencial possui uma explicação acessível no botão `?`. A interface funciona com mouse, teclado e toque e está traduzida integralmente para inglês, português do Brasil e espanhol.
+O login pelo navegador é a opção recomendada, então o assistente não pede senhas sem uma escolha explícita. Cada credencial possui uma explicação acessível no botão `?`. A interface funciona com mouse, teclado e toque e está traduzida integralmente para inglês, português do Brasil e espanhol.
 
 ## Uso diário
 
@@ -103,6 +130,8 @@ Cada credencial possui uma explicação acessível no botão `?`. A interface fu
 - Use **Navegador** quando uma loja solicitar login, CAPTCHA ou confirmação manual.
 - Use **Configurações** para alterar lojas, contas, notificações e agendamento.
 - As atualizações são oferecidas no painel e preservam o volume local.
+
+Ao atualizar uma instalação antiga, o launcher pode perguntar se deve reutilizar contas e sessões existentes. Escolha **Sim**, a menos que queira começar com um perfil limpo. O container é substituído, mas o volume persistente selecionado é preservado.
 
 O atalho normal verifica o Docker, inicia o serviço, espera o painel responder e o abre automaticamente. Para a inicialização com o Windows, o instalador oferece o modo econômico (padrão), que aguarda a coleta e libera a memória WSL do Docker, ou o modo painel, que mantém o painel local disponível. A desinstalação mantém contas e sessões por padrão; apagar os dados locais é uma opção separada e explícita. O Docker Desktop nunca é removido automaticamente.
 
