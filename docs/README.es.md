@@ -62,6 +62,9 @@ GamerPower también puede enviar promociones compatibles de Fanatical, itch.io e
 
 Eso es todo. No necesitas clonar el repositorio, editar archivos de configuración ni escribir comandos de Docker.
 
+> [!TIP]
+> **No necesitas entregar tus contraseñas a Lontrium.** En todas las tiendas compatibles que requieren una cuenta, elige el inicio de sesión en el navegador y entra directamente en el sitio oficial. Lontrium guarda la sesión resultante en el volumen Docker local y la reutiliza hasta que la tienda vuelva a solicitar autenticación.
+
 El instalador puede solicitar permisos de administrador o reiniciar Windows mientras instala Docker Desktop. Como el primer instalador no estará firmado, Windows SmartScreen puede mostrar un aviso de editor desconocido. Cada Release incluye `SHA256SUMS.txt` para comprobar la descarga.
 
 ## Primera configuración
@@ -76,6 +79,8 @@ El asistente presenta seis decisiones prácticas sin exigir conocimientos de var
 6. **Revisión** — confirma dónde quedan los datos y explica el siguiente paso.
 
 Después de **Finalizar y ejecutar**, el panel abre las tiendas elegidas. Cuando una necesite autenticación, abre **Navegador** e inicia sesión en el sitio oficial. El perfil persistente reutiliza la sesión hasta que la propia tienda la caduque.
+
+Puedes volver a ver toda la introducción desde **Configuración → Introducción**. Se abre en modo de vista previa y no sobrescribe ajustes ni inicia una ejecución.
 
 ## Cómo funciona
 

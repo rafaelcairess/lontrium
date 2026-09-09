@@ -123,6 +123,8 @@ h1, h2, h3, .brand-name, .store-name {
 
 .button.secondary { color: var(--text-soft); background: var(--window-muted); border-color: var(--line-strong); }
 .button.secondary:hover { background: var(--sidebar-secondary); border-color: rgba(189, 230, 251, .36); }
+.button.quiet { color: var(--muted); background: transparent; border-color: transparent; }
+.button.quiet:hover { color: var(--text-soft); background: var(--accent-soft); }
 .button.primary { color: var(--view); background: var(--accent); border-color: var(--accent); }
 .button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 .button:disabled { color: var(--muted); background: var(--window-muted); border-color: var(--line); opacity: .62; cursor: not-allowed; }
@@ -340,6 +342,10 @@ h1, h2, h3, .brand-name, .store-name {
 .settings-panel-header { margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
 .settings-panel-header h3 { font-size: 25px; }
 .settings-panel[hidden] { display: none; }
+.settings-introduction { max-width: 680px; padding: 24px; background: var(--view); border: 1px solid var(--line); border-radius: 12px; }
+.settings-introduction h4 { margin: 0 0 8px; color: var(--text-soft); font-family: "Newsreader", Georgia, serif; font-size: 23px; font-weight: 600; }
+.settings-introduction p { margin: 0 0 16px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.settings-introduction .settings-introduction-note { padding: 13px 15px; color: var(--text); background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 7px; }
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px; }
 .field { display: flex; flex-direction: column; gap: 7px; }
 .field label { color: var(--text-soft); font-size: 11px; font-weight: 650; }
@@ -478,6 +484,7 @@ h1, h2, h3, .brand-name, .store-name {
 .onboarding-main { min-width: 0; display: flex; flex-direction: column; }
 .onboarding-content { flex: 1; overflow-x: hidden; overflow-y: auto; padding: 58px 64px 36px; }
 .onboarding-actions { min-height: 76px; padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--window-muted); border-top: 1px solid var(--line); }
+.onboarding-actions-start { display: flex; align-items: center; gap: 8px; }
 .setup-page-header { max-width: 660px; margin-bottom: 32px; }
 .setup-page-header h2 { margin: 0; color: var(--text-soft); font-size: 34px; font-weight: 600; }
 .setup-page-header p { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }

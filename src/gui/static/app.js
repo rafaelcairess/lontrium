@@ -15,6 +15,8 @@ let setupStep = 0;
 let setupValues = {};
 let setupLoginMode = 'browser';
 let setupScheduleMode = 'startup';
+let onboardingPreview = false;
+let onboardingPreviewLocale = null;
 let statusPollTimer = null;
 
 function detectedLocale() {
@@ -430,6 +432,25 @@ function createSettingsPanel(sectionKey, body) {
   return panel;
 }
 
+function introductionSettingsBody() {
+  const body = document.createElement('div');
+  body.className = 'settings-introduction';
+  const title = document.createElement('h4');
+  title.textContent = t('settings.introductionTitle');
+  const copy = document.createElement('p');
+  copy.textContent = t('settings.introductionCopy');
+  const privacy = document.createElement('p');
+  privacy.className = 'settings-introduction-note';
+  privacy.textContent = t('settings.noPasswordCopy');
+  const button = document.createElement('button');
+  button.className = 'button secondary';
+  button.type = 'button';
+  button.textContent = t('settings.openIntroduction');
+  button.addEventListener('click', openOnboardingPreview);
+  body.append(title, copy, privacy, button);
+  return body;
+}
+
 function activateSettingsSection(name) {
   activeSettingsSection = name;
   for (const panel of document.querySelectorAll('.settings-panel')) panel.hidden = panel.dataset.section !== name;
@@ -445,7 +466,10 @@ function renderSettings(config) {
   const options = document.createElement('div');
   options.className = 'store-settings-list';
   renderStoreChoices(options, 'STORES', config.values.STORES);
-  const panels = [createSettingsPanel('section.stores', options)];
+  const panels = [
+    createSettingsPanel('section.introduction', introductionSettingsBody()),
+    createSettingsPanel('section.stores', options),
+  ];
   const sections = new Map();
   for (const spec of config.schema.filter(item => item.key !== 'STORES')) {
     if (!sections.has(spec.sectionKey)) sections.set(spec.sectionKey, []);
@@ -471,7 +495,7 @@ function renderSettings(config) {
       const icon = document.createElement('span');
       icon.className = 'settings-nav-symbol';
       icon.setAttribute('aria-hidden', 'true');
-      icon.textContent = {stores: '▦', schedule: '◷', browser: '◎', notifications: '◇'}[key] || '·';
+      icon.textContent = {introduction: 'i', stores: '▦', schedule: '◷', browser: '◎', notifications: '◇'}[key] || '·';
       button.append(icon);
     }
     const label = document.createElement('span');
@@ -526,6 +550,31 @@ async function saveSettings(event) {
 }
 
 function setupSelectedStores() { return Array.isArray(setupValues.STORES) ? setupValues.STORES : []; }
+
+function inferSetupScheduleMode() {
+  if (!setupValues.RUN_ON_STARTUP && !setupValues.SCHEDULER_FIXED_TIMES && Number(setupValues.SCHEDULER_HOURS) === 0) return 'manual';
+  if (!setupValues.RUN_ON_STARTUP) return 'daily';
+  return 'startup';
+}
+
+function openOnboardingPreview() {
+  setupValues = {...latestConfig.values, STORES: [...latestConfig.values.STORES]};
+  setupLoginMode = 'browser';
+  setupScheduleMode = inferSetupScheduleMode();
+  setupStep = 0;
+  onboardingPreview = true;
+  onboardingPreviewLocale = currentLocale;
+  closeSettings();
+  document.querySelector('#onboarding').hidden = false;
+  renderOnboarding();
+}
+
+function closeOnboardingPreview() {
+  onboardingPreview = false;
+  document.querySelector('#onboarding').hidden = true;
+  if (onboardingPreviewLocale && onboardingPreviewLocale !== currentLocale) setLocale(onboardingPreviewLocale, false);
+  onboardingPreviewLocale = null;
+}
 
 function captureSetupStep() {
   const form = document.querySelector('#onboardingForm');
@@ -593,7 +642,7 @@ function setupLanguagePage() {
     button.type = 'button';
     button.className = `language-card${currentLocale === locale ? ' selected' : ''}`;
     button.textContent = label;
-    button.addEventListener('click', () => setLocale(locale));
+    button.addEventListener('click', () => setLocale(locale, !onboardingPreview));
     choices.append(button);
   }
   page.append(choices);
@@ -763,7 +812,9 @@ function renderOnboarding() {
   content.replaceChildren(factories[setupStep]());
   content.scrollTo({top: 0, left: 0});
   document.querySelector('#setupBack').hidden = setupStep === 0;
-  document.querySelector('#setupNext').textContent = t(setupStep === setupSteps.length - 1 ? 'onboarding.finish' : 'common.continue');
+  document.querySelector('#setupExit').hidden = !onboardingPreview;
+  const finalKey = onboardingPreview ? 'onboarding.closePreview' : 'onboarding.finish';
+  document.querySelector('#setupNext').textContent = t(setupStep === setupSteps.length - 1 ? finalKey : 'common.continue');
 }
 
 async function nextSetupStep() {
@@ -772,6 +823,10 @@ async function nextSetupStep() {
   if (setupStep < setupSteps.length - 1) {
     setupStep += 1;
     renderOnboarding();
+    return;
+  }
+  if (onboardingPreview) {
+    closeOnboardingPreview();
     return;
   }
   try {
@@ -819,8 +874,7 @@ async function initialise() {
   latestStatus = await api('/api/status');
   latestConfig = await api('/api/config');
   setupValues = {...latestConfig.values, STORES: [...latestConfig.values.STORES]};
-  if (!setupValues.RUN_ON_STARTUP && !setupValues.SCHEDULER_FIXED_TIMES && Number(setupValues.SCHEDULER_HOURS) === 0) setupScheduleMode = 'manual';
-  else if (!setupValues.RUN_ON_STARTUP) setupScheduleMode = 'daily';
+  setupScheduleMode = inferSetupScheduleMode();
   renderStatus(latestStatus);
   if (latestConfig.setup.required && !latestConfig.setup.complete) {
     document.querySelector('#onboarding').hidden = false;
@@ -843,6 +897,7 @@ document.querySelector('#storeModalBackdrop').addEventListener('click', event =>
 document.querySelector('#storeManagerForm').addEventListener('submit', saveStoreSelection);
 document.querySelector('#setupBack').addEventListener('click', previousSetupStep);
 document.querySelector('#setupNext').addEventListener('click', nextSetupStep);
+document.querySelector('#setupExit').addEventListener('click', closeOnboardingPreview);
 document.querySelector('#updateButton').addEventListener('click', launchUpdater);
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && document.querySelector('#onboarding').hidden) { closeStoreManager(); closeSettings(); }

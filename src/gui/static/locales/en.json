@@ -37,7 +37,9 @@
   "settings": {
     "title": "Settings", "copy": "Accounts, scheduling and module behavior.", "storageTitle": "Local storage:",
     "storageCopy": "your accounts and preferences remain on this computer.", "blankSecret": "Leave a secret field blank to keep its current value.",
-    "saved": "{count} setting(s) saved.",
+    "saved": "{count} setting(s) saved.", "introductionTitle": "Use Lontrium without saving passwords",
+    "introductionCopy": "Reopen the six-step introduction to review login, privacy, stores and automation. Previewing it does not change your current settings or start a run.",
+    "noPasswordCopy": "You can sign in manually on every supported store that requires an account. Lontrium keeps the resulting browser session locally and reuses it until the store expires it.", "openIntroduction": "View introduction",
     "STORES": {"label": "Enabled stores"}, "SCHEDULER_HOURS": {"label": "Interval in hours"},
     "SCHEDULER_FIXED_TIMES": {"label": "Fixed times"}, "SCHEDULER_TIMEZONE": {"label": "Timezone"},
     "RUN_ON_STARTUP": {"label": "Run when the app starts"}, "SHOW": {"label": "Show browser in VNC"},
@@ -60,9 +62,9 @@
     "ITCHIO_EMAIL": {"label": "itch.io email"}, "ITCHIO_PASSWORD": {"label": "itch.io password"},
     "INDIEGALA_EMAIL": {"label": "IndieGala email"}, "INDIEGALA_PASSWORD": {"label": "IndieGala password"}
   },
-  "section": {"stores": "Stores", "schedule": "Schedule", "browser": "Browser", "notifications": "Notifications", "epic": "Epic Games", "prime": "Prime Gaming", "gog": "GOG", "steam": "Steam", "ubisoft": "Ubisoft", "unity": "Unity", "aliexpress": "AliExpress", "fab": "Fab", "gamerpower": "GamerPower", "fanatical": "Fanatical", "itchio": "itch.io", "indiegala": "IndieGala"},
+  "section": {"introduction": "Introduction", "stores": "Stores", "schedule": "Schedule", "browser": "Browser", "notifications": "Notifications", "epic": "Epic Games", "prime": "Prime Gaming", "gog": "GOG", "steam": "Steam", "ubisoft": "Ubisoft", "unity": "Unity", "aliexpress": "AliExpress", "fab": "Fab", "gamerpower": "GamerPower", "fanatical": "Fanatical", "itchio": "itch.io", "indiegala": "IndieGala"},
   "sectionDescription": {
-    "stores": "Choose which modules appear and run automatically.", "schedule": "Choose when automatic collections run.", "browser": "Configure the visual session used for logins and collections.",
+    "introduction": "Review how Lontrium works without changing your current setup.", "stores": "Choose which modules appear and run automatically.", "schedule": "Choose when automatic collections run.", "browser": "Configure the visual session used for logins and collections.",
     "notifications": "Control summaries, alerts and external integrations.", "epic": "Epic Games credentials and options.", "prime": "Prime Gaming credentials and code redemption.",
     "gog": "GOG credentials and account preferences.", "steam": "Credentials used by the Steam module.", "ubisoft": "Ubisoft credentials and authentication.",
     "unity": "Unity Asset Store credentials and terms.", "aliexpress": "Credentials and limits for daily coin collection.", "fab": "Fab asset redemption behavior.",
@@ -88,7 +90,7 @@
     "securityTitle": "Private by design", "securityCopy": "Lontrium Control runs on this computer. Read exactly where account data is stored and when it is used.",
     "storesTitle": "Choose your stores", "storesCopy": "Only selected stores appear on the dashboard and participate in automation.",
     "loginTitle": "How do you want to sign in?", "loginCopy": "Choose the simplest option now. Each store keeps its own session in the local browser profile.",
-    "browserLoginTitle": "Sign in through the browser", "browserLoginCopy": "Recommended. Lontrium opens the official store page and waits while you sign in. The resulting session stays on this computer.",
+    "browserLoginTitle": "Sign in through the browser — no saved password", "browserLoginCopy": "Recommended and available for every supported store that requires an account. Lontrium opens the official store page and waits while you sign in. It stores the resulting browser session locally, not your password.",
     "credentialsLoginTitle": "Save credentials locally", "credentialsLoginCopy": "Optional. Lontrium can fill supported login forms. Secrets remain in the local Docker volume and are never returned to the dashboard.", "recommended": "Recommended",
     "accountsTitle": "Connect your accounts", "accountsCopy": "Only the stores you selected are shown. You can change this choice later in Settings.",
     "manualPlanTitle": "No passwords will be saved now", "manualPlanCopy": "On the first run, open Browser when requested and sign in on each official website. Lontrium will reuse those local browser sessions afterward.",
@@ -97,7 +99,7 @@
     "scheduleDailyTitle": "Once a day", "scheduleDailyCopy": "Run only at the selected time while Docker and Lontrium are available.",
     "scheduleManualTitle": "Manual only", "scheduleManualCopy": "Do not schedule claims. You start all stores or one store from the dashboard.",
     "dailyTime": "Daily check time", "timezone": "Timezone: {timezone}",
-    "reviewTitle": "Ready to run locally", "reviewCopy": "Review your choices. You can change every setting later.",
+    "reviewTitle": "Ready to run locally", "reviewCopy": "Review your choices. You can change every setting later.", "exitPreview": "Exit introduction", "closePreview": "Close introduction",
     "finish": "Finish and run", "selectedStores": "Selected stores", "loginMethod": "Login method", "credentialsConfigured": "Accounts filled now", "noneStoredNow": "None — browser login selected", "automation": "Automation", "nextStep": "What happens next", "nextManualLogin": "The dashboard opens and starts the selected stores. Use Browser when a store asks you to sign in.", "nextRun": "The dashboard opens and starts the selected stores.", "interval": "Run interval", "hours": "every {count} hours",
     "manualSchedule": "manual or fixed times only", "localOnly": "Dashboard available only on this computer"
   },

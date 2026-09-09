@@ -309,6 +309,9 @@ def test_frontend_is_local_and_contains_store_controls():
     assert "setup-login-mode" in script
     assert "setup-schedule-mode" in script
     assert "settings-nav-symbol" in script
+    assert "section.introduction" in script
+    assert "openOnboardingPreview" in script
+    assert 'id="setupExit"' in html
     assert "help-tooltip" in script
     assert "result-outcome" in script
     assert "storeManagerForm" in html

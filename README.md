@@ -69,6 +69,9 @@ GamerPower can route compatible giveaways from Fanatical, itch.io and IndieGala.
 
 That is all. You do not need to clone the repository, edit configuration files or type Docker commands.
 
+> [!TIP]
+> **You do not have to give Lontrium your passwords.** For every supported store that requires an account, choose browser login and sign in directly on the official website. Lontrium keeps the resulting browser session in the local Docker volume and reuses it until that store asks you to authenticate again.
+
 The installer may request administrator permission or a Windows restart while Docker Desktop is installed. Because the first installer is unsigned, Windows SmartScreen may display an unknown-publisher warning. Every Release includes `SHA256SUMS.txt` so the download can be verified.
 
 ## First-time setup
@@ -83,6 +86,8 @@ The assistant asks six practical questions instead of exposing the full environm
 6. **Review** — confirms where data stays and explains exactly what will happen after finishing.
 
 After **Finish and run**, Lontrium opens the dashboard and starts the selected services. If a store needs authentication, open **Browser**, finish the login on the official page and return to the dashboard. The browser profile is persistent, so this is normally required only on first use or after the store expires its own session.
+
+You can revisit the complete introduction later from **Settings → Introduction**. It opens in preview mode and does not overwrite settings or start a run.
 
 ## How it works
 

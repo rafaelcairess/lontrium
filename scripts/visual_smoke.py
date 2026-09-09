@@ -77,6 +77,17 @@ async def check_settings_navigation(page) -> None:
     assert result["items"] == result["icons"]
     assert result["storeLogos"] > 0
     assert result["fits"]
+    await click(page, '.settings-nav-item[data-section="section.introduction"]')
+    await click(page, ".settings-introduction .button")
+    preview = json.loads(await page.evaluate("""
+      JSON.stringify({
+        visible: !document.querySelector('#onboarding').hidden,
+        exitVisible: !document.querySelector('#setupExit').hidden
+      })
+    """))
+    assert preview == {"visible": True, "exitVisible": True}
+    await click(page, "#setupExit")
+    assert await page.evaluate("document.querySelector('#onboarding').hidden") is True
 
 
 async def main() -> None:

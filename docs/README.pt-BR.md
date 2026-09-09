@@ -62,6 +62,9 @@ O GamerPower também pode encaminhar promoções compatíveis do Fanatical, itch
 
 Pronto. Você não precisa clonar o repositório, editar arquivos de configuração ou digitar comandos Docker.
 
+> [!TIP]
+> **Você não precisa fornecer suas senhas ao Lontrium.** Em todas as lojas compatíveis que exigem conta, escolha o login pelo navegador e entre diretamente no site oficial. O Lontrium guarda a sessão resultante no volume Docker local e a reutiliza até que a própria loja solicite autenticação novamente.
+
 O instalador pode solicitar permissão de administrador ou uma reinicialização durante a instalação do Docker Desktop. Como o primeiro instalador não será assinado, o Windows SmartScreen poderá mostrar um aviso de editor desconhecido. Cada Release inclui `SHA256SUMS.txt` para verificar o download.
 
 ## Primeira configuração
@@ -76,6 +79,8 @@ O assistente faz seis escolhas práticas, sem exigir que o usuário entenda vari
 6. **Revisão** — confirma onde os dados ficam e explica o próximo passo.
 
 Depois de **Concluir e executar**, o painel abre e inicia as lojas escolhidas. Quando alguma delas pedir autenticação, abra **Navegador** e faça o login no site oficial. O perfil persistente reutiliza essa sessão até que a própria loja a expire.
+
+Você pode rever toda a introdução depois em **Configurações → Introdução**. Ela abre em modo de visualização e não sobrescreve configurações nem inicia uma execução.
 
 ## Como funciona
 
