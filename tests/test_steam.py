@@ -8,6 +8,7 @@ from types import ModuleType
 # Keeping nodriver out also makes them independent of generated CDP bindings.
 sys.modules.setdefault("nodriver", ModuleType("nodriver"))
 
+from src.gui.state import store_result_message_key, summarize_store_result
 from src.stores.steam import SteamClaimer, classify_login_state, parse_steam_store_search
 
 
@@ -39,6 +40,15 @@ def test_login_detection_requires_positive_account_evidence():
     assert classify_login_state({}) == (False, "")
     assert classify_login_state({"accountId": 42}) == (True, "")
     assert classify_login_state({"accountName": "player"}) == (True, "player")
+
+
+def test_empty_official_search_has_an_explicit_dashboard_result():
+    result = {"games": [], "statusCode": "no_active_giveaways"}
+    assert summarize_store_result("steam", result) == (
+        "Nenhuma promoção Free-to-Keep ativa",
+        None,
+    )
+    assert store_result_message_key("steam", result) == "status.noActiveGiveaways"
 
 
 def test_run_logs_in_before_official_discovery_and_accepts_valid_empty_result():
@@ -83,7 +93,10 @@ def test_run_logs_in_before_official_discovery_and_accepts_valid_empty_result():
 
     asyncio.run(claimer.run())
 
-    assert calls == ["start", "open-store", "cookies", "login", "official-search", "close"]
+    assert calls == [
+        "start", "open-store", "cookies", "login", "official-search",
+        "open-store", "close",
+    ]
 
 
 def test_run_does_not_start_discovery_when_manual_login_times_out():

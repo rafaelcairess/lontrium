@@ -59,6 +59,9 @@ def summarize_store_result(store_key: str, result) -> tuple[str, dict | None]:
     if not isinstance(result, dict):
         return "Concluído sem novidades", None
 
+    if store_key == "steam" and result.get("statusCode") == "no_active_giveaways":
+        return "Nenhuma promoção Free-to-Keep ativa", None
+
     if store_key in {"aliexpress", "shopee"} and isinstance(result.get("checkin"), dict):
         source = result["checkin"]
         outcome = source.get("outcome")
@@ -106,6 +109,14 @@ def summarize_store_result(store_key: str, result) -> tuple[str, dict | None]:
     else:
         message = f"{len(items)} verificado{'s' if len(items) != 1 else ''}"
     return message, {"kind": "games", "items": items}
+
+
+def store_result_message_key(store_key: str, result) -> str | None:
+    """Translate allow-listed store result codes into stable client keys."""
+    if store_key == "steam" and isinstance(result, dict):
+        if result.get("statusCode") == "no_active_giveaways":
+            return "status.noActiveGiveaways"
+    return None
 
 
 class DashboardState:

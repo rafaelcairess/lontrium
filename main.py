@@ -56,7 +56,7 @@ from src.gui.settings import (
     get_setup_state,
     save_settings,
 )
-from src.gui.state import dashboard_state, summarize_store_result
+from src.gui.state import dashboard_state, store_result_message_key, summarize_store_result
 from src.version import __version__, __author__, __repo__, __contributors__
 
 # ---------------------------------------------------------------------------
@@ -359,7 +359,12 @@ async def run_claimers(requested_stores: list[str] | None = None) -> None:
             if isinstance(res, dict) and res.get("games"):
                 aggregated_results.append(res)
             message, details = summarize_store_result(store_key, res)
-            record = dashboard_state.finish_store(store_key, message, details=details)
+            record = dashboard_state.finish_store(
+                store_key,
+                message,
+                details=details,
+                message_key=store_result_message_key(store_key, res),
+            )
             await _persist_dashboard_result(record)
         except Exception:
             logger.exception("✗ %s crashed", name)

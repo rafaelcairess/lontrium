@@ -72,6 +72,10 @@ def parse_steam_store_search(html: str) -> list[dict]:
 class SteamClaimer(BaseClaimer):
     store_name = "steam"
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.run_status: str | None = None
+
     async def run(self) -> None:
         """Main entry point: find free Steam games and claim them.
         
@@ -118,6 +122,11 @@ class SteamClaimer(BaseClaimer):
 
             if not games:
                 logger.info("No current free-to-keep games found on %s. Done.", source_label)
+                self.run_status = "no_active_giveaways"
+                # Do not leave VNC frozen on an empty search page that looks like
+                # a failed run. The dashboard carries the precise result.
+                await self.page.get(URL_STORE)
+                await self.sleep(1)
                 return
 
             for game in games:
@@ -954,4 +963,9 @@ async def claim_steam() -> dict:
     """Convenience entry point."""
     claimer = SteamClaimer()
     await claimer.run()
-    return {"store": "Steam", "user": claimer.user, "games": claimer.notify_games}
+    return {
+        "store": "Steam",
+        "user": claimer.user,
+        "games": claimer.notify_games,
+        "statusCode": claimer.run_status,
+    }

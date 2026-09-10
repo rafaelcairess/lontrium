@@ -25,7 +25,7 @@
   "storeAuth": {"shopee": "Manual login: use Continue with Google (direct login is blocked by Shopee security)."},
   "status": {
     "waiting": "Waiting for a run", "queued": "Queued", "runningNow": "Running now", "failed": "Last run failed",
-    "completedNoChanges": "Completed with no changes", "resultGames": "Run details", "resultCoins": "Coin check-in details",
+    "completedNoChanges": "Completed with no changes", "noActiveGiveaways": "No active Free-to-Keep promotions", "resultGames": "Run details", "resultCoins": "Coin check-in details",
     "claimed": "Claimed", "owned": "Already in library", "available": "Available", "failedItem": "Failed", "skipped": "Skipped",
     "actionRequired": "Action required", "processed": "Checked", "run": "Run", "runningButton": "Running"
   },
