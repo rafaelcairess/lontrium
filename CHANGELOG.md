@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.1] - 2026-09-10
+
+### Fixed
+- **Steam no longer closes while the user is signing in** — authentication is completed and verified before giveaway discovery starts, and an unknown page is no longer mistaken for a valid signed-in session.
+- **SteamDB CAPTCHA is avoided during normal runs** — current 100%-off Free-to-Keep offers are discovered on the official Steam Store first. SteamDB remains a fallback only when the official search fails, while a valid empty result correctly means that no offer is active.
+
+### Added
+- Focused tests for official Steam offer parsing, conservative login detection and the login-before-discovery control flow.
+
+## [1.2.0] - 2026-09-10
+
+### Changed
+- The six-step local onboarding can be opened again from Settings, making passwordless manual-login setup and privacy guidance reusable after the first run.
+- Settings navigation now includes store icons and the current responsive layout improvements.
+
 ## [1.1.0] - 2026-09-07
 
 ### Added

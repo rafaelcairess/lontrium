@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from html import unescape
 
 import nodriver as uc
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -22,6 +23,50 @@ STEAMDB_FREE_URL = "https://steamdb.info/upcoming/free/"
 # Steam Store URLs used for login and navigation
 URL_STORE = "https://store.steampowered.com/?l=english"
 URL_LOGIN = "https://store.steampowered.com/login/"
+STEAM_FREE_SEARCH_URL = "https://store.steampowered.com/search/?maxprice=free&specials=1&ndl=1&l=english"
+
+
+def classify_login_state(data: dict) -> tuple[bool, str]:
+    """Interpret conservative signals collected from a Steam Store page."""
+    if data.get("accountName") or data.get("hasLogout") or data.get("accountId"):
+        return True, str(data.get("accountName") or "")
+    return False, ""
+
+
+def parse_steam_store_search(html: str) -> list[dict]:
+    """Extract only current 100%-off products from official Steam search HTML."""
+    games: list[dict] = []
+    seen: set[str] = set()
+    rows = re.findall(
+        r'(<a\b[^>]*class="[^"]*search_result_row[^"]*"[^>]*>.*?</a>)',
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for row in rows:
+        # A zero-priced Free to Play title is not a time-limited Free to Keep offer.
+        if not re.search(r'class="[^"]*discount_pct[^"]*"[^>]*>\s*-100%\s*<', row, re.IGNORECASE):
+            continue
+        url_match = re.search(
+            r'href="(https://store\.steampowered\.com/app/(\d+)/[^"]*)"', row,
+            flags=re.IGNORECASE,
+        )
+        if not url_match or url_match.group(2) in seen:
+            continue
+        title_match = re.search(
+            r'class="[^"]*title[^"]*"[^>]*>(.*?)</span>', row,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        app_id = url_match.group(2)
+        title = re.sub(r"<[^>]+>", "", title_match.group(1) if title_match else "")
+        title = unescape(title).strip() or f"Steam App {app_id}"
+        seen.add(app_id)
+        games.append({
+            "title": title,
+            "url": unescape(url_match.group(1)),
+            "app_id": app_id,
+            "source": "steam_store",
+        })
+    return games
 
 
 class SteamClaimer(BaseClaimer):
@@ -32,8 +77,9 @@ class SteamClaimer(BaseClaimer):
         
         Flow:
         1. Start browser
-        2. Scrape SteamDB for free-to-keep games
-        3. Claim all SteamDB games
+        2. Restore or complete the Steam login
+        3. Find current giveaways on the official Steam Store
+        4. Claim them directly on Steam (SteamDB is discovery fallback only)
         """
         logger.debug("Starting Steam claiming flow")
 
@@ -47,21 +93,34 @@ class SteamClaimer(BaseClaimer):
                 ],
             )
 
-            # Step 2: Scrape SteamDB for free game listings
-            sdb_games = await self._fetch_steamdb_via_browser()
-
-            # Log SteamDB results
-            if sdb_games:
-                links = [f"  • [bold cyan]{g['title']}[/bold cyan] 🔗 {g.get('url', '')}" for g in sdb_games]
-                logger.info("🎮 [bold magenta]SteamDB: %d free game(s):[/bold magenta]\n%s",
-                            len(sdb_games), "\n".join(links))
-
-            if not sdb_games:
-                logger.info("No free games found on SteamDB. Done.")
+            # Login first. Otherwise a manual login can replace the SteamDB page
+            # while it is being scraped, which used to close the browser early.
+            await self.page.get(URL_STORE)
+            await self.sleep(3)
+            await self._dismiss_cookie_banner()
+            if not await self._ensure_logged_in(URL_STORE):
+                logger.warning("Steam login was not completed; skipping this run.")
                 return
 
-            # Step 3: Claim all SteamDB games
-            for game in sdb_games:
+            # Search the official Store first. A valid empty response means there
+            # are no active giveaways, so it must not trigger SteamDB/CAPTCHA.
+            games = await self._fetch_steam_store_promotions()
+            source_label = "Steam Store"
+            if games is None:
+                logger.warning("Official Steam promotion search was unavailable; trying SteamDB fallback.")
+                games = await self._fetch_steamdb_via_browser()
+                source_label = "SteamDB"
+
+            if games:
+                links = [f"  • [bold cyan]{g['title']}[/bold cyan] 🔗 {g.get('url', '')}" for g in games]
+                logger.info("🎮 [bold magenta]%s: %d free game(s):[/bold magenta]\n%s",
+                            source_label, len(games), "\n".join(links))
+
+            if not games:
+                logger.info("No current free-to-keep games found on %s. Done.", source_label)
+                return
+
+            for game in games:
                 await self._claim_game(game)
 
         except Exception as exc:
@@ -73,6 +132,37 @@ class SteamClaimer(BaseClaimer):
             has_new = [g for g in self.notify_games if g["status"] == "claimed"]
             # We defer notification sending to main.py
             await self.close_browser()
+
+    # ------------------------------------------------------------------
+
+    async def _fetch_steam_store_promotions(self) -> list[dict] | None:
+        """Return official current giveaways, or ``None`` when search did not load."""
+        logger.debug("Fetching free-to-keep games from the official Steam Store")
+        try:
+            await self.page.get(STEAM_FREE_SEARCH_URL)
+            await self.sleep(5)
+            await self._dismiss_cookie_banner()
+            if await self._human_challenge_present():
+                if not await self._wait_out_challenge("Steam Store"):
+                    return None
+                await self.sleep(3)
+
+            current_url = await self.page.evaluate("window.location.href")
+            if not url_has_allowed_host(current_url, "store.steampowered.com") or "/login" in current_url:
+                logger.warning("Steam promotion search redirected to %s", current_url)
+                return None
+
+            html_raw = await self.page.evaluate("document.documentElement.outerHTML")
+            html = html_raw if isinstance(html_raw, str) else ""
+            if "search_results_count" not in html and "search_result_row" not in html:
+                logger.warning("Steam promotion search did not render recognizable results")
+                return None
+            games = parse_steam_store_search(html)
+            logger.debug("Official Steam search: %d current 100%%-off game(s)", len(games))
+            return games
+        except Exception as exc:
+            logger.warning("Official Steam promotion search failed: %s", exc)
+            return None
 
     # ------------------------------------------------------------------
 
@@ -205,22 +295,25 @@ class SteamClaimer(BaseClaimer):
     # Login
     # ------------------------------------------------------------------
 
-    async def _ensure_logged_in(self, return_url: str) -> None:
+    async def _ensure_logged_in(self, return_url: str) -> bool:
         """Check login status on current page, log in if needed, return to game url."""
         async def _is_logged_in() -> bool:
             result = await self.page.evaluate(
                 """
                 JSON.stringify((() => {
-                    const el = document.querySelector('#account_pulldown');
-                    if (el) {
-                        const text = (el.textContent || '').trim();
-                        if (text.length > 0) return { loggedIn: true, user: text };
-                    }
-                    const links = document.querySelectorAll('a.global_action_link');
-                    for (const a of links) {
-                        if (a.getAttribute('href')?.includes('/login/')) return { loggedIn: false, user: '' };
-                    }
-                    return { loggedIn: true, user: '' };
+                    const account = document.querySelector('#account_pulldown');
+                    const accountName = (account?.textContent || '').trim();
+                    const hrefs = [...document.querySelectorAll('a[href]')]
+                        .map(a => a.getAttribute('href') || '');
+                    const accountId = Number(window.g_AccountID || 0);
+                    return {
+                        accountName,
+                        accountId: Number.isFinite(accountId) ? accountId : 0,
+                        hasLogout: hrefs.some(h => h.includes('/logout')),
+                        hasLoginLink: hrefs.some(h => h.includes('/login')),
+                        hasLoginForm: Boolean(document.querySelector('input[type="password"]')),
+                        url: window.location.href,
+                    };
                 })())
                 """
             )
@@ -228,15 +321,16 @@ class SteamClaimer(BaseClaimer):
                 data = json.loads(result) if isinstance(result, str) else {}
             except (json.JSONDecodeError, TypeError):
                 data = {}
-            if data.get("loggedIn"):
-                self.user = data.get("user", "") or cfg.steam_username or "unknown"
+            logged_in, account_name = classify_login_state(data)
+            if logged_in:
+                self.user = account_name or cfg.steam_username or "unknown"
                 return True
             return False
 
         if await _is_logged_in():
             if not self.user or self.user == "unknown":
                 self.log_signed_in()
-            return
+            return True
 
         # Not logged in → navigate directly to login page
         logger.warning("Not signed in – redirecting to login page…")
@@ -253,7 +347,7 @@ class SteamClaimer(BaseClaimer):
             await self.sleep(3)
             if await _is_logged_in():
                 self.log_signed_in()
-                return
+                return True
             
             # Auto-login failed (CAPTCHA, wrong creds, etc.) → fall back to VNC
             logger.warning("Auto-login failed. Falling back to VNC manual login…")
@@ -266,16 +360,17 @@ class SteamClaimer(BaseClaimer):
         logged_in = await self._wait_for_vnc_login(_is_logged_in)
         if not logged_in:
             logger.warning("VNC login timed out – skipping.")
-            return
+            return False
 
         # Verify login and get username
         await self.page.get(return_url)
         await self.sleep(3)
         if await _is_logged_in():
             self.log_signed_in()
+            return True
         else:
-            self.user = cfg.steam_username or "unknown"
-            logger.warning("Could not verify login, continuing as %s", self.user)
+            logger.warning("Could not verify Steam login; the browser session was not accepted.")
+            return False
 
     async def _do_login(self) -> None:
         """Perform Steam login with stored credentials.
@@ -432,7 +527,9 @@ class SteamClaimer(BaseClaimer):
             return
 
         # Check login status ON the game page
-        await self._ensure_logged_in(current_url)
+        if not await self._ensure_logged_in(current_url):
+            logger.warning("Skipping '%s' because Steam login was not completed.", title)
+            return
         current_url = await self.page.evaluate("window.location.href")
 
         # Handle age gate
