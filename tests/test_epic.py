@@ -66,3 +66,7 @@ class TestClaimHonesty:
     def test_the_early_success_check_ignores_the_offer_text(self):
         checkout = self.SOURCE.split("async def _handle_new_checkout", 1)[1]
         assert "add it to your library" in checkout.split("already_done = await", 1)[1][:800]
+
+    def test_checkout_waits_for_manual_captcha_resolution(self):
+        checkout = self.SOURCE.split("async def _handle_new_checkout", 1)[1]
+        assert '_wait_out_challenge("Epic Games checkout")' in checkout

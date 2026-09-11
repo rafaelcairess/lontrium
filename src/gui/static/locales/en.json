@@ -45,7 +45,7 @@
     "RUN_ON_STARTUP": {"label": "Run when the app starts"}, "SHOW": {"label": "Show browser in VNC"},
     "VNC_LOGIN_TIMEOUT": {"label": "Manual login wait (seconds)"}, "NOTIFY_SUMMARY": {"label": "Send summary"},
     "NOTIFY_ERRORS": {"label": "Notify errors"}, "NOTIFY_CLAIM_FAILS": {"label": "Notify claim failures"},
-    "NOTIFY_LOGIN_REQUEST": {"label": "Notify when login is required"}, "DISCORD_WEBHOOK": {"label": "Discord webhook"},
+    "NOTIFY_LOGIN_REQUEST": {"label": "Notify when login is required"}, "WINDOWS_NOTIFICATIONS": {"label": "Windows notifications for manual actions"}, "DISCORD_WEBHOOK": {"label": "Discord webhook"},
     "NOTIFY": {"label": "Apprise URL"}, "EG_EMAIL": {"label": "Epic Games email"}, "EG_PASSWORD": {"label": "Epic Games password"},
     "EG_OTPKEY": {"label": "Epic Games TOTP key"}, "EG_MOBILE": {"label": "Claim mobile games"},
     "PG_EMAIL": {"label": "Prime Gaming email"}, "PG_PASSWORD": {"label": "Prime Gaming password"},

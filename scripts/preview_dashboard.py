@@ -126,6 +126,9 @@ async def main() -> None:
     async def update() -> dict:
         return {"currentVersion": "1.0.0", "available": False, "latestVersion": "1.0.0"}
 
+    async def manual_actions() -> dict:
+        return {"enabled": True, "events": []}
+
     async def run(_stores: list[str] | None) -> bool:
         return True
 
@@ -137,6 +140,7 @@ async def main() -> None:
         save_callback=save,
         setup_callback=setup,
         update_callback=update,
+        manual_actions_callback=manual_actions,
         run_callback=run,
     )
     try:

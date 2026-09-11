@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **O Lontrium Control v1.2.1 já está disponível.** Baixe o instalador acima e confira o arquivo [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **O Lontrium Control v1.3.0 já está disponível.** Baixe o instalador acima e confira o arquivo [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="images/05-dashboard.png" alt="Painel do Lontrium Control mostrando jogos e resultados do AliExpress e da Shopee" width="1100">
@@ -93,7 +93,7 @@ Atalho do Windows → Docker Desktop → container local
                                          (configurações, sessões e histórico)
 ```
 
-Cada módulo abre o site oficial, verifica a oferta ou recompensa e salva um resultado estruturado. Jogos mostram título e resultado; AliExpress e Shopee mostram moedas e os dados de saldo ou sequência disponibilizados pela página. CAPTCHA, antifraude e verificações de conta são devolvidos ao usuário no navegador visual e nunca são contornados.
+Cada módulo abre o site oficial, verifica a oferta ou recompensa e salva um resultado estruturado. Jogos mostram título e resultado; AliExpress e Shopee mostram moedas e os dados de saldo ou sequência disponibilizados pela página. CAPTCHA, antifraude e verificações de conta são devolvidos ao usuário no navegador visual e nunca são contornados. No Windows, um pequeno auxiliar nativo pode avisar quando um CAPTCHA exige atenção e abrir a sessão local do navegador com um clique.
 
 ## Seus dados ficam no seu computador
 
@@ -133,6 +133,7 @@ O login pelo navegador é a opção recomendada, então o assistente não pede s
 - Abra o **Lontrium Control** pelo menu Iniciar ou pelo atalho da área de trabalho.
 - Use **Executar agora** para todas as lojas ou execute somente uma delas.
 - Use **Navegador** quando uma loja solicitar login, CAPTCHA ou confirmação manual.
+- Ative **Notificações do Windows para ações manuais** para receber um único alerta local por CAPTCHA detectado. O auxiliar lê somente um evento sem segredos em `127.0.0.1`.
 - Use **Configurações** para alterar lojas, contas, notificações e agendamento.
 - As atualizações são oferecidas no painel e preservam o volume local.
 

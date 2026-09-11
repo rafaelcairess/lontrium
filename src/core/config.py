@@ -206,6 +206,7 @@ class Config:
     notify_already_claimed: bool = _bool("NOTIFY_ALREADY_CLAIMED", default=False)
     notify_updates: bool = _bool("NOTIFY_UPDATES", default=True)
     notify_login_request: bool = _bool("NOTIFY_LOGIN_REQUEST", default=True)
+    windows_notifications: bool = _bool("WINDOWS_NOTIFICATIONS", default=True)
     notify_test: bool = _bool("NOTIFY_TEST", default=False)
     # Stores whose notifications are silenced (they still run and claim).
     notify_skip_stores: set = _skip_stores("NOTIFY_SKIP_STORES")

@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] - 2026-09-11
+
+### Added
+- **Native Windows CAPTCHA notifications** — a small .NET helper displays one localized alert per detected challenge and opens the fixed local browser URL when requested.
+- A local, secret-free manual-action event endpoint and a dashboard setting to enable or disable Windows alerts.
+
+### Changed
+- Epic Games now checks for human-verification challenges throughout both current and legacy checkout flows, then resumes automatically after the user completes the challenge.
+- The Windows launcher starts the notifier after the local dashboard is ready and stops it with economy mode or uninstall.
+
+### Security
+- Notification events contain only an allow-listed store key, event type, random identifier and timestamp. No credentials, cookies, page contents or arbitrary URLs are exposed.
+
 ## [1.2.1] - 2026-09-10
 
 ### Fixed

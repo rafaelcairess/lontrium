@@ -1,5 +1,5 @@
 #define MyAppName "Lontrium Control"
-#define MyAppVersion "1.2.1"
+#define MyAppVersion "1.3.0"
 #define MyAppPublisher "Rafael Caires"
 #define MyAppURL "https://github.com/rafaelcairess/lontrium"
 
@@ -61,9 +61,12 @@ Source: "Start-ClaimerControl.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "docker-compose.yml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "claimer.env"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
 Source: "Lontrium.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\src\gui\static\icons\lontrium.png"; DestDir: "{app}"; DestName: "Lontrium.png"; Flags: ignoreversion
+Source: "windows-notifier\bin\Release\net48\Lontrium.Notifier.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "windows-notifier\bin\Release\net48\Lontrium.Notifier.exe.config"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\Lontrium Control"; Filename: "{app}\Start-ClaimerControl.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"
+Name: "{group}\Lontrium Control"; Filename: "{app}\Start-ClaimerControl.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"; AppUserModelID: "RafaelCaires.LontriumControl"
 Name: "{autodesktop}\Lontrium Control"; Filename: "{app}\Start-ClaimerControl.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"; Tasks: desktopicon
 Name: "{userstartup}\Lontrium Control"; Filename: "powershell.exe"; Parameters: "-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\Start-ClaimerControl.ps1"" -Action economy"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"; Tasks: autostart\economy
 Name: "{userstartup}\Lontrium Control"; Filename: "{app}\Start-ClaimerControl.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"; Tasks: autostart\dashboard

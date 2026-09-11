@@ -137,6 +137,7 @@ if ($Action -eq "source") {
 }
 $PanelUrl = "http://127.0.0.1:8080"
 $ReleaseApi = "https://api.github.com/repos/rafaelcairess/lontrium/releases/latest"
+$NotifierPath = Join-Path $PSScriptRoot "Lontrium.Notifier.exe"
 
 function Write-Step([string]$Message) {
     Write-Host "`n> $Message" -ForegroundColor Cyan
@@ -309,9 +310,23 @@ function Wait-Panel {
     throw $Script:Text.PanelTimeout
 }
 
+function Start-WindowsNotifier {
+    if (Test-Path -LiteralPath $NotifierPath) {
+        Start-Process -FilePath $NotifierPath -WindowStyle Hidden | Out-Null
+    }
+}
+
+function Stop-WindowsNotifier {
+    Get-Process -Name "Lontrium.Notifier" -ErrorAction SilentlyContinue | ForEach-Object {
+        try {
+            if ($_.Path -eq $NotifierPath) { Stop-Process -Id $_.Id -Force }
+        } catch { }
+    }
+}
+
 function Get-LatestReleaseTag {
     Write-Step $Script:Text.UpdateCheck
-    $release = Invoke-RestMethod -Uri $ReleaseApi -Headers @{Accept = "application/vnd.github+json"; "User-Agent" = "lontrium-launcher/1.2.1"} -TimeoutSec 15
+    $release = Invoke-RestMethod -Uri $ReleaseApi -Headers @{Accept = "application/vnd.github+json"; "User-Agent" = "lontrium-launcher/1.3.0"} -TimeoutSec 15
     $tag = [string]$release.tag_name
     if ($tag -notmatch "^v\d+\.\d+\.\d+$") { throw $Script:Text.UpdateInvalid }
     return $tag
@@ -324,6 +339,7 @@ function Start-Application {
     Write-Step $Script:Text.Starting
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
+    Start-WindowsNotifier
     Write-Host $Script:Text.Ready -ForegroundColor Green
     Start-Process $PanelUrl | Out-Null
 }
@@ -332,6 +348,7 @@ function Start-SourceApplication {
     Write-Step $Script:Text.StartingSource
     Invoke-Compose @("up", "-d", "--build", "app")
     Wait-Panel
+    Start-WindowsNotifier
     Write-Host $Script:Text.Ready -ForegroundColor Green
     Start-Process $PanelUrl | Out-Null
 }
@@ -391,6 +408,7 @@ function Get-RunningContainerIds {
 }
 
 function Stop-DockerAfterEconomyRun {
+    Stop-WindowsNotifier
     Invoke-Compose @("stop", "app")
     $otherContainers = @(Get-RunningContainerIds)
     if ($otherContainers.Count -gt 0) {
@@ -421,6 +439,7 @@ function Start-EconomyApplication {
     Write-Step $Script:Text.Starting
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
+    Start-WindowsNotifier
     if (Wait-EconomyRun) {
         Stop-DockerAfterEconomyRun
     }
@@ -436,6 +455,7 @@ function Update-Application {
     Invoke-Compose @("pull", "app")
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
+    Start-WindowsNotifier
     Start-Process $PanelUrl | Out-Null
 }
 
@@ -455,6 +475,7 @@ function Invoke-ClaimerControl(
         elseif ($RequestedAction -eq "economy") { Start-EconomyApplication }
         elseif ($RequestedAction -eq "source") { Start-SourceApplication }
         elseif ($RequestedAction -eq "uninstall") {
+            Stop-WindowsNotifier
             Invoke-Compose @("down")
             if ($RemoveData) {
                 $volume = Get-EnvironmentValue "CLAIMER_DATA_VOLUME"

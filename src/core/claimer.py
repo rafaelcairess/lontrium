@@ -590,6 +590,11 @@ class BaseClaimer:
             waited += 2
 
         self.logger.warning("%s is behind a Cloudflare / captcha human-check – requesting manual solve via VNC.", label)
+        windows_event_id = None
+        if cfg.windows_notifications:
+            from src.gui.state import dashboard_state
+
+            windows_event_id = dashboard_state.request_manual_action("captcha", self.store_name)
         custom_msg = self._vnc_notice(
             f"{label}: security check",
             "A Cloudflare / captcha human-check is blocking the bot. Open the browser and complete it to continue.",
@@ -598,7 +603,11 @@ class BaseClaimer:
         async def _cleared() -> bool:
             return not await self._human_challenge_present()
 
-        return await self._wait_for_vnc_login(_cleared, custom_msg=custom_msg)
+        try:
+            return await self._wait_for_vnc_login(_cleared, custom_msg=custom_msg)
+        finally:
+            if windows_event_id:
+                dashboard_state.resolve_manual_action(windows_event_id)
 
     async def sleep(self, seconds: float) -> None:
         """Async sleep wrapper."""

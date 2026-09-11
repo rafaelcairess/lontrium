@@ -84,6 +84,7 @@ SPECS = (
     _setting("NOTIFY_ERRORS", "notify_errors", "notifications", "boolean"),
     _setting("NOTIFY_CLAIM_FAILS", "notify_claim_fails", "notifications", "boolean"),
     _setting("NOTIFY_LOGIN_REQUEST", "notify_login_request", "notifications", "boolean"),
+    _setting("WINDOWS_NOTIFICATIONS", "windows_notifications", "notifications", "boolean"),
     _setting("DISCORD_WEBHOOK", "discord_webhook", "notifications", "password", secret=True),
     _setting("NOTIFY", "notify_url", "notifications", "password", secret=True),
     _setting("EG_EMAIL", "eg_email", "epic", "password", secret=True, credential=True),

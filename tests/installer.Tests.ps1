@@ -123,6 +123,14 @@ Describe "Application identity" {
         if (-not (Test-Path -LiteralPath "$PSScriptRoot/../installer/Lontrium.ico")) { throw "Installer icon is missing" }
     }
 
+    It "packages and starts the native Windows notification helper" {
+        $installer = Get-Content -LiteralPath "$PSScriptRoot/../installer/ClaimerControl.iss" -Raw
+        $launcher = Get-Content -LiteralPath "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Raw
+        if ($installer -notmatch 'Lontrium\.Notifier\.exe') { throw "Native notifier is not packaged" }
+        if ($installer -notmatch 'AppUserModelID: "RafaelCaires\.LontriumControl"') { throw "Toast AppUserModelID is missing" }
+        if ($launcher -notmatch 'Start-WindowsNotifier') { throw "Launcher does not start the notifier" }
+    }
+
     It "registers Lontrium updates and preserves the former protocol alias" {
         $installer = Get-Content -LiteralPath "$PSScriptRoot/../installer/ClaimerControl.iss" -Raw
         if ($installer -notmatch 'Software\\Classes\\lontrium') { throw "Lontrium update protocol is not configured" }

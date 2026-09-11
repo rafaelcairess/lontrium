@@ -30,6 +30,7 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         save_callback: Callable[[dict], Awaitable[dict]],
         setup_callback: Callable[[dict], Awaitable[dict]],
         update_callback: Callable[[], Awaitable[dict]],
+        manual_actions_callback: Callable[[], Awaitable[dict]],
         run_callback: Callable[[list[str] | None], Awaitable[bool]],
     ) -> None:
         super().__init__(address, DashboardHandler)
@@ -39,6 +40,7 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         self.save_callback = save_callback
         self.setup_callback = setup_callback
         self.update_callback = update_callback
+        self.manual_actions_callback = manual_actions_callback
         self.run_callback = run_callback
         self.csrf_token = secrets.token_urlsafe(32)
 
@@ -137,6 +139,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._json(self.server.await_result(self.server.config_callback()))
             elif path == "/api/update":
                 self._json(self.server.await_result(self.server.update_callback()))
+            elif path == "/api/windows-events":
+                self._json(self.server.await_result(self.server.manual_actions_callback()))
             else:
                 self._serve_static(path)
         except Exception:
@@ -184,6 +188,7 @@ def start_dashboard(
     save_callback: Callable[[dict], Awaitable[dict]],
     setup_callback: Callable[[dict], Awaitable[dict]],
     update_callback: Callable[[], Awaitable[dict]],
+    manual_actions_callback: Callable[[], Awaitable[dict]],
     run_callback: Callable[[list[str] | None], Awaitable[bool]],
 ) -> DashboardHTTPServer:
     """Start the dashboard server in a daemon thread."""
@@ -195,6 +200,7 @@ def start_dashboard(
         save_callback,
         setup_callback,
         update_callback,
+        manual_actions_callback,
         run_callback,
     )
     Thread(target=server.serve_forever, name="fgc-dashboard", daemon=True).start()

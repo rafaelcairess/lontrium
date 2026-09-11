@@ -898,6 +898,9 @@ class EpicGamesClaimer(BaseClaimer):
                 return False
 
             logger.debug("Clicked '%s' button for '%s'.", initial_btn, title)
+            if await self._human_challenge_present():
+                if not await self._wait_out_challenge("Epic Games checkout"):
+                    return False
             if flow_type == "new_get":
                 post_get_state = ""
                 for _ in range(5):
@@ -969,6 +972,9 @@ class EpicGamesClaimer(BaseClaimer):
                 accepted = False
                 
                 for attempt in range(25):
+                    if await self._human_challenge_present():
+                        if not await self._wait_out_challenge("Epic Games checkout"):
+                            return False
                     # Check main page for Add to Library
                     without_cdp = await self.page.evaluate("""
                         (() => {
@@ -1088,6 +1094,9 @@ class EpicGamesClaimer(BaseClaimer):
 
             # ── Step 4: Verify claim success ──
             for _ in range(15):
+                if await self._human_challenge_present():
+                    if not await self._wait_out_challenge("Epic Games checkout"):
+                        return False
                 success = await self.page.evaluate(
                     """
                     (() => {
@@ -1265,6 +1274,9 @@ class EpicGamesClaimer(BaseClaimer):
         try:
             # Wait for the iframe to appear on the main page
             for attempt in range(10):
+                if await self._human_challenge_present():
+                    if not await self._wait_out_challenge("Epic Games checkout"):
+                        return False
                 has_iframe = await self.page.evaluate(
                     """!!document.querySelector('#webPurchaseContainer iframe')"""
                 )
@@ -1367,6 +1379,9 @@ class EpicGamesClaimer(BaseClaimer):
             # Epic shows either "Thanks for your order!" or "It's all yours" dialog
             for _ in range(20):
                 await self.sleep(2)
+                if await self._human_challenge_present():
+                    if not await self._wait_out_challenge("Epic Games checkout"):
+                        return False
                 confirmed = await self.page.evaluate("""
                     (() => {
                         const body = (document.body?.innerText || '').toLowerCase();

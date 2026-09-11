@@ -14,6 +14,29 @@ from src.gui.server import start_dashboard
 from src.gui.state import DashboardState, summarize_store_result
 
 
+def test_manual_action_events_are_safe_deduplicated_and_resolved():
+    state = DashboardState()
+
+    event_id = state.request_manual_action("captcha", "epic")
+    assert state.request_manual_action("captcha", "epic") == event_id
+    assert state.request_manual_action("unknown", "epic") is None
+    assert state.request_manual_action("captcha", "not-a-store") is None
+
+    payload = state.manual_actions(True)
+    assert payload["enabled"] is True
+    assert payload["events"] == [{
+        "id": event_id,
+        "kind": "captcha",
+        "store": "epic",
+        "createdAt": payload["events"][0]["createdAt"],
+    }]
+    assert "url" not in json.dumps(payload).lower()
+    assert state.manual_actions(False) == {"enabled": False, "events": []}
+
+    state.resolve_manual_action(event_id)
+    assert state.manual_actions(True)["events"] == []
+
+
 def test_secret_values_are_never_returned(monkeypatch):
     monkeypatch.setattr(settings.cfg, "ae_email", "private@example.invalid")
     monkeypatch.setattr(settings.cfg, "ae_password", "do-not-return")
@@ -26,6 +49,23 @@ def test_secret_values_are_never_returned(monkeypatch):
     assert payload["configured"]["AE_PASSWORD"] is True
     assert "private@example.invalid" not in json.dumps(payload)
     assert "do-not-return" not in json.dumps(payload)
+
+
+def test_windows_manual_action_notification_is_a_non_secret_setting():
+    spec = next(item for item in settings.SPECS if item.key == "WINDOWS_NOTIFICATIONS")
+    assert spec.kind == "boolean"
+    assert spec.secret is False
+
+
+def test_native_notifier_uses_only_fixed_loopback_endpoints():
+    source = (
+        Path(__file__).resolve().parent.parent
+        / "installer" / "windows-notifier" / "Program.cs"
+    ).read_text(encoding="utf-8")
+    assert 'Endpoint = "http://127.0.0.1:8080/api/windows-events"' in source
+    assert 'BrowserUrl = "http://127.0.0.1:7080/?autoconnect=true"' in source
+    assert "AllowedStores.Contains" in source
+    assert 'item.kind == "captcha"' in source
 
 
 def test_settings_are_validated_persisted_and_applied(tmp_path, monkeypatch):
@@ -203,6 +243,9 @@ def test_dashboard_http_api_and_csrf():
     async def update():
         return {"currentVersion": "1.0.0", "available": False}
 
+    async def manual_actions():
+        return {"enabled": True, "events": [{"id": "safe-id", "kind": "captcha", "store": "epic"}]}
+
     async def run(_stores):
         return True
 
@@ -214,6 +257,7 @@ def test_dashboard_http_api_and_csrf():
         save_callback=save,
         setup_callback=setup,
         update_callback=update,
+        manual_actions_callback=manual_actions,
         run_callback=run,
     )
     base = f"http://127.0.0.1:{server.server_address[1]}"
@@ -242,6 +286,12 @@ def test_dashboard_http_api_and_csrf():
 
         with urlopen(f"{base}/api/update", timeout=3) as response:
             assert json.load(response)["currentVersion"] == "1.0.0"
+
+        with urlopen(f"{base}/api/windows-events", timeout=3) as response:
+            event_payload = json.load(response)
+            assert event_payload["events"][0] == {
+                "id": "safe-id", "kind": "captcha", "store": "epic"
+            }
 
         denied = Request(
             f"{base}/api/run",

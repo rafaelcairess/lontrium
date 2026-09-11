@@ -41,3 +41,5 @@ GEMINI.md
 TEMP_*
 *.tmp
 installer/output/
+installer/windows-notifier/bin/
+installer/windows-notifier/obj/

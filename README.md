@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **Lontrium Control v1.2.1 is available now.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **Lontrium Control v1.3.0 is available now.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="docs/images/05-dashboard.png" alt="Lontrium Control dashboard showing game, AliExpress and Shopee results" width="1100">
@@ -107,7 +107,7 @@ Windows shortcut
                        └─ sanitized 90-day result history
 ```
 
-Each store module opens the corresponding official website, checks the current offer or reward and records a structured result. Games show their titles and outcomes. AliExpress and Shopee show collected coins and any balance/streak information the official page exposes. CAPTCHA, anti-fraud and account verification are handed back to the user in the visual browser; Lontrium never attempts to bypass them.
+Each store module opens the corresponding official website, checks the current offer or reward and records a structured result. Games show their titles and outcomes. AliExpress and Shopee show collected coins and any balance/streak information the official page exposes. CAPTCHA, anti-fraud and account verification are handed back to the user in the visual browser; Lontrium never attempts to bypass them. On Windows, the installer includes a small native helper that can notify you when a CAPTCHA needs attention and open the local browser session with one click.
 
 ## Your data stays local
 
@@ -147,6 +147,7 @@ Browser login is the recommended default, so the assistant does not request pass
 - Open **Lontrium Control** from the Start menu or desktop shortcut.
 - Use **Run now** for all enabled stores or run one store individually.
 - Use **Browser** when a store asks for login, CAPTCHA or manual confirmation.
+- Enable **Windows notifications for manual actions** to receive one local alert per detected CAPTCHA. The helper reads only a secret-free event from `127.0.0.1`; it does not send account data anywhere.
 - Use **Settings** to change stores, accounts, notifications or scheduling.
 - Updates are offered in the dashboard and preserve the local volume.
 

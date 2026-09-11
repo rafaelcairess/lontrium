@@ -111,6 +111,8 @@ jobs:
           $version = $Matches[1]
           (Get-Content installer/claimer.env) -replace '^CLAIMER_TAG=.*$', "CLAIMER_TAG=$tag" | Set-Content installer/claimer.env -Encoding utf8
           (Get-Content installer/ClaimerControl.iss) -replace '^#define MyAppVersion .*$', "#define MyAppVersion `"$version`"" | Set-Content installer/ClaimerControl.iss -Encoding utf8
+      - name: Build native Windows notification helper
+        run: dotnet build installer/windows-notifier/Lontrium.Notifier.csproj -c Release --nologo
       - name: Install Inno Setup
         run: choco install innosetup --yes --no-progress
       - name: Compile installer

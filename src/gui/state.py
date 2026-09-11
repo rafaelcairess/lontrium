@@ -128,6 +128,7 @@ class DashboardState:
         self._finished_at: str | None = None
         self._store_runs: dict[str, tuple[str, str]] = {}
         self._history: list[dict] = []
+        self._manual_actions: dict[str, dict] = {}
         self._stores = {
             key: {
                 **meta,
@@ -140,6 +141,35 @@ class DashboardState:
             }
             for key, meta in STORE_META.items()
         }
+
+    def request_manual_action(self, kind: str, store: str) -> str | None:
+        """Publish a deduplicated, secret-free action for the local Windows helper."""
+        if kind != "captcha" or store not in STORE_META:
+            return None
+        with self._lock:
+            for event_id, event in self._manual_actions.items():
+                if event["kind"] == kind and event["store"] == store:
+                    return event_id
+            event_id = uuid4().hex
+            self._manual_actions[event_id] = {
+                "id": event_id,
+                "kind": kind,
+                "store": store,
+                "createdAt": _now(),
+            }
+            return event_id
+
+    def resolve_manual_action(self, event_id: str | None) -> None:
+        if not event_id:
+            return
+        with self._lock:
+            self._manual_actions.pop(event_id, None)
+
+    def manual_actions(self, enabled: bool) -> dict:
+        """Return only allow-listed local notification data; never page or account data."""
+        with self._lock:
+            events = deepcopy(list(self._manual_actions.values())) if enabled else []
+        return {"enabled": bool(enabled), "events": events}
 
     def begin_run(self, store_keys: list[str]) -> None:
         with self._lock:

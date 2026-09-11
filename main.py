@@ -706,6 +706,9 @@ async def main() -> None:
         async def dashboard_update() -> dict:
             return await get_update_status()
 
+        async def dashboard_manual_actions() -> dict:
+            return dashboard_state.manual_actions(cfg.windows_notifications)
+
         async def dashboard_run(stores: list[str] | None) -> bool:
             global _dashboard_run_task
             if cfg.gui_setup_required and not get_setup_state()["complete"]:
@@ -748,6 +751,7 @@ async def main() -> None:
             save_callback=dashboard_save,
             setup_callback=dashboard_setup,
             update_callback=dashboard_update,
+            manual_actions_callback=dashboard_manual_actions,
             run_callback=dashboard_run,
         )
     interval_text = (
