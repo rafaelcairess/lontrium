@@ -17,13 +17,17 @@
     return 'en';
   }
 
-  function setupScheduleValues(mode, dailyTime = '12:00') {
-    const safeMode = ['startup', 'daily', 'manual'].includes(mode) ? mode : 'startup';
-    const safeTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(dailyTime)) ? String(dailyTime) : '12:00';
+  function setupScheduleValues(mode, dailyTimes = '12:00,16:00,19:00') {
+    const candidate = ({startup: 'economy', daily: 'economy'})[mode] || mode;
+    const safeMode = ['economy', 'dashboard', 'manual'].includes(candidate) ? candidate : 'economy';
+    const parts = String(dailyTimes).split(',').map(value => value.trim());
+    const safeTimes = parts.length > 0 && parts.every(value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value))
+      ? [...new Set(parts)].join(',') : '12:00,16:00,19:00';
     return {
       SCHEDULER_HOURS: 0,
-      SCHEDULER_FIXED_TIMES: safeMode === 'manual' ? '' : safeTime,
-      RUN_ON_STARTUP: safeMode === 'startup',
+      SCHEDULER_FIXED_TIMES: safeMode === 'economy' ? safeTimes : '',
+      RUN_ON_STARTUP: safeMode !== 'manual',
+      WINDOWS_ECONOMY_SCHEDULE: safeMode === 'economy',
     };
   }
 

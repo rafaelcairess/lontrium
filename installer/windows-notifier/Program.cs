@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Net;
@@ -16,6 +17,7 @@ namespace Lontrium.Notifier
     {
         private const string AppId = "RafaelCaires.LontriumControl";
         private const string Endpoint = "http://127.0.0.1:8080/api/windows-events";
+        private const string ConfigEndpoint = "http://127.0.0.1:8080/api/config";
         private const string BrowserUrl = "http://127.0.0.1:7080/?autoconnect=true";
         private static readonly HashSet<string> AllowedStores = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -37,6 +39,7 @@ namespace Lontrium.Notifier
         {
             var seen = LoadSeen();
             var unavailableSince = DateTime.UtcNow;
+            string scheduleSignature = null;
             while (true)
             {
                 EventResponse response = Fetch();
@@ -56,8 +59,63 @@ namespace Lontrium.Notifier
                 {
                     return;
                 }
+                string currentSchedule = FetchScheduleSignature();
+                if (currentSchedule != null)
+                {
+                    if (scheduleSignature != null && scheduleSignature != currentSchedule)
+                    {
+                        StartScheduleSync();
+                    }
+                    scheduleSignature = currentSchedule;
+                }
                 Thread.Sleep(TimeSpan.FromSeconds(3));
             }
+        }
+
+        private static string FetchScheduleSignature()
+        {
+            try
+            {
+                var request = (HttpWebRequest)WebRequest.Create(ConfigEndpoint);
+                request.Proxy = null;
+                request.Timeout = 2500;
+                request.ReadWriteTimeout = 2500;
+                request.UserAgent = "Lontrium-Notifier/1";
+                using (var response = (HttpWebResponse)request.GetResponse())
+                using (var stream = response.GetResponseStream())
+                using (var reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    if (response.StatusCode != HttpStatusCode.OK) return null;
+                    var config = new JavaScriptSerializer().Deserialize<ConfigResponse>(reader.ReadToEnd());
+                    if (config?.values == null) return null;
+                    return string.Join("|", config.values.WINDOWS_ECONOMY_SCHEDULE,
+                        config.values.RUN_ON_STARTUP, config.values.WINDOWS_WAKE_ON_AC,
+                        config.values.SCHEDULER_FIXED_TIMES ?? "");
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static void StartScheduleSync()
+        {
+            try
+            {
+                string launcher = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Start-ClaimerControl.ps1");
+                if (!File.Exists(launcher)) return;
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = "-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"" + launcher + "\" -Action sync-schedule -Language auto",
+                    WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                });
+            }
+            catch { }
         }
 
         private static EventResponse Fetch()
@@ -178,6 +236,19 @@ namespace Lontrium.Notifier
             public string id { get; set; }
             public string kind { get; set; }
             public string store { get; set; }
+        }
+
+        private sealed class ConfigResponse
+        {
+            public ScheduleValues values { get; set; }
+        }
+
+        private sealed class ScheduleValues
+        {
+            public bool WINDOWS_ECONOMY_SCHEDULE { get; set; }
+            public bool RUN_ON_STARTUP { get; set; }
+            public bool WINDOWS_WAKE_ON_AC { get; set; }
+            public string SCHEDULER_FIXED_TIMES { get; set; }
         }
     }
 }

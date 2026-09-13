@@ -56,7 +56,12 @@ from src.gui.settings import (
     get_setup_state,
     save_settings,
 )
-from src.gui.state import dashboard_state, store_result_message_key, summarize_store_result
+from src.gui.state import (
+    dashboard_state,
+    store_result_message_key,
+    store_result_succeeded,
+    summarize_store_result,
+)
 from src.version import __version__, __author__, __repo__, __contributors__
 
 # ---------------------------------------------------------------------------
@@ -330,7 +335,11 @@ async def _persist_dashboard_result(record: dict | None) -> None:
         logger.exception("Could not save dashboard history for %s", record.get("store"))
 
 
-async def run_claimers(requested_stores: list[str] | None = None) -> None:
+async def run_claimers(
+    requested_stores: list[str] | None = None,
+    *,
+    retry_incomplete: bool = False,
+) -> None:
     """Run selected claimers sequentially (they each open their own browser)."""
     claimers = _get_active_claimers(requested_stores)
 
@@ -359,11 +368,13 @@ async def run_claimers(requested_stores: list[str] | None = None) -> None:
             if isinstance(res, dict) and res.get("games"):
                 aggregated_results.append(res)
             message, details = summarize_store_result(store_key, res)
+            succeeded = not retry_incomplete or store_result_succeeded(store_key, res)
             record = dashboard_state.finish_store(
                 store_key,
                 message,
+                failed=not succeeded,
                 details=details,
-                message_key=store_result_message_key(store_key, res),
+                message_key=(store_result_message_key(store_key, res) if succeeded else "status.failed"),
             )
             await _persist_dashboard_result(record)
         except Exception:
@@ -455,6 +466,7 @@ async def run_claimers_scheduled(
     requested_stores: list[str] | None = None,
     *,
     automatic: bool = False,
+    retry_incomplete: bool = False,
 ) -> None:
     """Run claimers from scheduler jobs without overlapping executions."""
     if _claim_run_lock.locked():
@@ -463,7 +475,7 @@ async def run_claimers_scheduled(
 
     async with _claim_run_lock:
         try:
-            await run_claimers(requested_stores)
+            await run_claimers(requested_stores, retry_incomplete=retry_incomplete)
         finally:
             # Keep the dashboard usable even if an unexpected orchestration
             # error escapes after an individual store has finished.
@@ -529,8 +541,12 @@ def _configure_scheduled_jobs(
 ) -> list[tuple[int, int]]:
     """Replace recurring jobs with the dashboard/current config values."""
     for job in scheduler.get_jobs():
-        if job.id == "claim_all" or job.id.startswith("claim_fixed_"):
+        if job.id in {"claim_all", "claim_all_startup"} or job.id.startswith("claim_fixed_"):
             scheduler.remove_job(job.id)
+
+    if cfg.windows_host_scheduler:
+        logger.info("In-container scheduler disabled; Windows Task Scheduler owns automatic runs.")
+        return []
 
     if cfg.scheduler_hours > 0:
         next_run = _next_interval_run(last_automatic_run, cfg.scheduler_hours)
@@ -650,7 +666,7 @@ async def main() -> None:
     # account automation. Existing source/Docker users are unaffected unless
     # they explicitly enable GUI_SETUP_REQUIRED.
     fixed_timezone = _scheduler_timezone() if fixed_times else None
-    if cfg.run_on_startup and not setup_pending and _startup_run_due(
+    if not cfg.windows_host_scheduler and cfg.run_on_startup and not setup_pending and _startup_run_due(
         last_automatic_run,
         cfg.scheduler_hours,
         fixed_times=fixed_times,
@@ -663,6 +679,8 @@ async def main() -> None:
             replace_existing=True,
             kwargs={"automatic": True},
         )
+    elif cfg.windows_host_scheduler:
+        logger.info("Initial claiming run delegated to Windows Task Scheduler.")
     elif cfg.run_on_startup and not setup_pending:
         logger.info("Initial claiming run skipped because the previous automatic cycle is still in cooldown.")
     elif not cfg.run_on_startup:
@@ -677,11 +695,17 @@ async def main() -> None:
 
         async def dashboard_status() -> dict:
             enabled = [_store_key(name) for name, _ in _get_active_claimers()]
+            last_automatic_run = await load_last_automatic_run()
             schedule = {
                 "nextRun": _next_scheduled_run(scheduler),
                 "timezone": cfg.scheduler_timezone,
                 "fixedTimes": cfg.scheduler_fixed_times,
                 "intervalHours": cfg.scheduler_hours,
+                "hostManaged": cfg.windows_host_scheduler,
+                "economyEnabled": cfg.windows_economy_schedule,
+                "runOnStartup": cfg.run_on_startup,
+                "wakeOnAc": cfg.windows_wake_on_ac,
+                "lastAutomaticRun": last_automatic_run.isoformat() if last_automatic_run else None,
             }
             return dashboard_state.snapshot(enabled, schedule)
 
@@ -709,10 +733,38 @@ async def main() -> None:
         async def dashboard_manual_actions() -> dict:
             return dashboard_state.manual_actions(cfg.windows_notifications)
 
-        async def dashboard_run(stores: list[str] | None) -> bool:
+        async def dashboard_run(
+            stores: list[str] | None,
+            mode: str | None = None,
+            local_date: str | None = None,
+            utc_offset_minutes: int | None = None,
+        ) -> bool | dict:
             global _dashboard_run_task
             if cfg.gui_setup_required and not get_setup_state()["complete"]:
                 raise SettingsError("Complete local setup before running", "error.setupRequired")
+            if mode == "scheduled-retry":
+                if stores is not None:
+                    raise ValueError("Scheduled runs select stores automatically")
+                if not isinstance(local_date, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", local_date):
+                    raise ValueError("Invalid local date")
+                if isinstance(utc_offset_minutes, bool) or not isinstance(utc_offset_minutes, int):
+                    raise ValueError("Invalid UTC offset")
+                if not -840 <= utc_offset_minutes <= 840:
+                    raise ValueError("Invalid UTC offset")
+                try:
+                    host_day = datetime.strptime(local_date, "%Y-%m-%d").date()
+                except ValueError as exc:
+                    raise ValueError("Invalid local date") from exc
+                host_today = (datetime.now(timezone.utc) + timedelta(minutes=utc_offset_minutes)).date()
+                if host_day != host_today:
+                    raise ValueError("Local date is outside the current day")
+                stores = dashboard_state.pending_stores_for_day(
+                    [_store_key(name) for name, _ in _get_active_claimers()],
+                    host_day,
+                    utc_offset_minutes,
+                )
+                if not stores:
+                    return {"accepted": False, "reason": "already-complete", "stores": []}
             if stores is not None:
                 if any(not isinstance(store, str) for store in stores):
                     raise ValueError("Seleção de lojas inválida")
@@ -725,7 +777,7 @@ async def main() -> None:
             # Shopee has its own persistent browser profile and may need the owner
             # waiting in VNC for a first login. An explicit Shopee action can run
             # without waiting for an unrelated scheduled multi-store run.
-            if busy and stores == ["shopee"]:
+            if mode is None and busy and stores == ["shopee"]:
                 if "shopee" in _dashboard_individual_stores:
                     return False
                 _dashboard_individual_stores.add("shopee")
@@ -739,8 +791,28 @@ async def main() -> None:
                 task.add_done_callback(_release_individual)
                 return True
             if busy:
-                return False
-            _dashboard_run_task = asyncio.create_task(run_claimers_scheduled(stores))
+                return {"accepted": False, "reason": "busy", "stores": stores or []} if mode else False
+            previous_run_id = dashboard_state.current_run_id()
+            _dashboard_run_task = asyncio.create_task(
+                run_claimers_scheduled(
+                    stores,
+                    automatic=mode == "scheduled-retry",
+                    retry_incomplete=mode == "scheduled-retry",
+                )
+            )
+            for _ in range(10):
+                await asyncio.sleep(0)
+                if dashboard_state.current_run_id() != previous_run_id:
+                    break
+            if mode:
+                run_id = dashboard_state.current_run_id()
+                if not run_id or run_id == previous_run_id:
+                    return {"accepted": False, "reason": "busy", "stores": stores or []}
+                return {
+                    "accepted": True,
+                    "runId": run_id,
+                    "stores": stores or [],
+                }
             return True
 
         dashboard_server = start_dashboard(

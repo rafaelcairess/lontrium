@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from datetime import date
 from pathlib import Path
 from threading import Thread
 from urllib.error import HTTPError
@@ -11,7 +12,95 @@ import pytest
 
 from src.gui import settings
 from src.gui.server import start_dashboard
-from src.gui.state import DashboardState, summarize_store_result
+from src.gui.state import DashboardState, store_result_succeeded, summarize_store_result
+
+
+def test_pending_stores_retry_failures_but_skip_today_successes():
+    state = DashboardState()
+    state.restore([
+        {
+            "runId": "today-success",
+            "store": "aliexpress",
+            "state": "success",
+            "message": "done",
+            "messageKey": "status.completedNoChanges",
+            "startedAt": "2026-09-13T14:00:00+00:00",
+            "finishedAt": "2026-09-13T14:01:00+00:00",
+            "details": None,
+        },
+        {
+            "runId": "today-failure",
+            "store": "epic",
+            "state": "error",
+            "message": "failed",
+            "messageKey": "status.failed",
+            "startedAt": "2026-09-13T14:00:00+00:00",
+            "finishedAt": "2026-09-13T14:02:00+00:00",
+            "details": None,
+        },
+        {
+            "runId": "yesterday-success",
+            "store": "gog",
+            "state": "success",
+            "message": "done",
+            "messageKey": "status.completedNoChanges",
+            "startedAt": "2026-09-12T14:00:00+00:00",
+            "finishedAt": "2026-09-12T14:01:00+00:00",
+            "details": None,
+        },
+    ])
+
+    assert state.pending_stores_for_day(
+        ["epic", "gog", "aliexpress", "shopee"], date(2026, 9, 13), -180
+    ) == ["epic", "gog", "shopee"]
+
+
+def test_pending_stores_uses_host_day_across_utc_midnight():
+    state = DashboardState()
+    state.restore([{
+        "runId": "local-evening",
+        "store": "shopee",
+        "state": "success",
+        "message": "done",
+        "messageKey": "status.completedNoChanges",
+        "startedAt": "2026-09-14T01:00:00+00:00",
+        "finishedAt": "2026-09-14T01:01:00+00:00",
+        "details": None,
+    }])
+
+    assert state.pending_stores_for_day(["shopee"], date(2026, 9, 13), -180) == []
+
+
+def test_legacy_success_record_with_incomplete_coin_result_is_retried():
+    state = DashboardState()
+    state.restore([{
+        "runId": "legacy-incomplete",
+        "store": "aliexpress",
+        "state": "success",
+        "message": "not collected",
+        "messageKey": "status.resultCoins",
+        "startedAt": "2026-09-13T14:00:00+00:00",
+        "finishedAt": "2026-09-13T14:01:00+00:00",
+        "details": {"kind": "coins", "outcome": "not_collected"},
+    }])
+
+    assert state.pending_stores_for_day(["aliexpress"], date(2026, 9, 13), -180) == ["aliexpress"]
+
+
+@pytest.mark.parametrize("outcome", ["collected", "collected_manual", "already_collected"])
+def test_completed_coin_outcomes_stop_later_retries(outcome):
+    assert store_result_succeeded("aliexpress", {"checkin": {"outcome": outcome}})
+
+
+@pytest.mark.parametrize("outcome", ["not_collected", "available", None])
+def test_incomplete_coin_outcomes_remain_pending(outcome):
+    assert not store_result_succeeded("shopee", {"checkin": {"outcome": outcome}})
+
+
+def test_failed_game_result_remains_pending_but_owned_or_no_offer_complete():
+    assert not store_result_succeeded("epic", {"games": [{"title": "Example", "status": "failed"}]})
+    assert store_result_succeeded("epic", {"games": [{"title": "Example", "status": "already owned"}]})
+    assert store_result_succeeded("gog", {"games": []})
 
 
 def test_manual_action_events_are_safe_deduplicated_and_resolved():
@@ -246,7 +335,11 @@ def test_dashboard_http_api_and_csrf():
     async def manual_actions():
         return {"enabled": True, "events": [{"id": "safe-id", "kind": "captcha", "store": "epic"}]}
 
-    async def run(_stores):
+    async def run(_stores, mode=None, local_date=None, utc_offset_minutes=None):
+        if mode == "scheduled-retry":
+            if local_date == "complete":
+                return {"accepted": False, "reason": "already-complete", "stores": []}
+            return {"accepted": True, "runId": "a" * 32, "stores": ["epic"]}
         return True
 
     server = start_dashboard(
@@ -312,6 +405,41 @@ def test_dashboard_http_api_and_csrf():
         with urlopen(allowed, timeout=3) as response:
             assert response.status == 202
             assert json.load(response)["accepted"] is True
+
+        scheduled = Request(
+            f"{base}/api/run",
+            data=json.dumps({
+                "mode": "scheduled-retry",
+                "localDate": "2026-09-13",
+                "utcOffsetMinutes": -180,
+            }).encode(),
+            headers={"Content-Type": "application/json", "X-FGC-Token": server.csrf_token},
+            method="POST",
+        )
+        with urlopen(scheduled, timeout=3) as response:
+            payload = json.load(response)
+            assert response.status == 202
+            assert payload == {"accepted": True, "runId": "a" * 32, "stores": ["epic"]}
+
+        already_complete = Request(
+            f"{base}/api/run",
+            data=b'{"mode":"scheduled-retry","localDate":"complete","utcOffsetMinutes":-180}',
+            headers={"Content-Type": "application/json", "X-FGC-Token": server.csrf_token},
+            method="POST",
+        )
+        with urlopen(already_complete, timeout=3) as response:
+            assert response.status == 200
+            assert json.load(response) == {"accepted": False, "reason": "already-complete", "stores": []}
+
+        invalid_mode = Request(
+            f"{base}/api/run",
+            data=b'{"mode":"shell"}',
+            headers={"Content-Type": "application/json", "X-FGC-Token": server.csrf_token},
+            method="POST",
+        )
+        with pytest.raises(HTTPError) as error:
+            urlopen(invalid_mode, timeout=3)
+        assert error.value.code == 400
 
         setup_request = Request(
             f"{base}/api/setup",

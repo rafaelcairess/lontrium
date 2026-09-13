@@ -20,14 +20,17 @@ test('browser language is used when there is no saved preference', () => {
 });
 
 test('setup schedule presets map to validated backend settings', () => {
-  assert.deepEqual(setupScheduleValues('startup', '08:30'), {
-    SCHEDULER_HOURS: 0, SCHEDULER_FIXED_TIMES: '08:30', RUN_ON_STARTUP: true,
+  assert.deepEqual(setupScheduleValues('economy', '08:30,16:00,19:00'), {
+    SCHEDULER_HOURS: 0, SCHEDULER_FIXED_TIMES: '08:30,16:00,19:00', RUN_ON_STARTUP: true,
+    WINDOWS_ECONOMY_SCHEDULE: true,
   });
-  assert.deepEqual(setupScheduleValues('daily', '21:15'), {
-    SCHEDULER_HOURS: 0, SCHEDULER_FIXED_TIMES: '21:15', RUN_ON_STARTUP: false,
+  assert.deepEqual(setupScheduleValues('dashboard', '21:15'), {
+    SCHEDULER_HOURS: 0, SCHEDULER_FIXED_TIMES: '', RUN_ON_STARTUP: true,
+    WINDOWS_ECONOMY_SCHEDULE: false,
   });
   assert.deepEqual(setupScheduleValues('manual', '09:00'), {
     SCHEDULER_HOURS: 0, SCHEDULER_FIXED_TIMES: '', RUN_ON_STARTUP: false,
+    WINDOWS_ECONOMY_SCHEDULE: false,
   });
-  assert.equal(setupScheduleValues('invalid', '99:99').SCHEDULER_FIXED_TIMES, '12:00');
+  assert.equal(setupScheduleValues('invalid', '99:99').SCHEDULER_FIXED_TIMES, '12:00,16:00,19:00');
 });

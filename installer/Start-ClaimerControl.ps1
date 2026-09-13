@@ -1,9 +1,10 @@
 ﻿[CmdletBinding()]
 param(
-    [ValidateSet("start", "economy", "source", "update", "uninstall", "check")]
+    [ValidateSet("start", "economy", "scheduled", "sync-schedule", "configure-economy", "configure-dashboard", "configure-manual", "source", "update", "uninstall", "check")]
     [string]$Action = "start",
     [ValidateSet("auto", "en", "pt-BR", "es")]
     [string]$Language = "auto",
+    [string]$InstallTag = "",
     [switch]$RemoveData
 )
 
@@ -38,6 +39,8 @@ $Messages = @{
         EconomySetup = "Initial setup is not complete. The dashboard will remain open."
         EconomyTimeout = "The automatic run did not finish in time. Docker will remain running so you can inspect the dashboard."
         EconomySharedDocker = "Another container is running. Lontrium was stopped, but Docker will remain available for the other application."
+        ScheduleComplete = "Today's enabled stores are already complete. Releasing resources..."
+        ScheduleSynced = "Windows automation schedule updated."
         UpdateCheck = "Checking the official Lontrium Control Release..."
         UpToDate = "Lontrium Control is already up to date."
         UpdatePrompt = "Update from {0} to {1}? [Y/n]"
@@ -72,6 +75,8 @@ $Messages = @{
         EconomySetup = "A configuração inicial ainda não terminou. O painel permanecerá aberto."
         EconomyTimeout = "A coleta automática não terminou a tempo. O Docker permanecerá ligado para você verificar o painel."
         EconomySharedDocker = "Outro container está em execução. O Lontrium foi parado, mas o Docker continuará disponível para o outro aplicativo."
+        ScheduleComplete = "As lojas habilitadas já foram concluídas hoje. Liberando recursos..."
+        ScheduleSynced = "Agendamento automático do Windows atualizado."
         UpdateCheck = "Consultando a Release oficial do Lontrium Control..."
         UpToDate = "O Lontrium Control já está atualizado."
         UpdatePrompt = "Atualizar da versão {0} para {1}? [S/n]"
@@ -106,6 +111,8 @@ $Messages = @{
         EconomySetup = "La configuración inicial no ha terminado. El panel permanecerá abierto."
         EconomyTimeout = "La ejecución automática no terminó a tiempo. Docker seguirá activo para que puedas revisar el panel."
         EconomySharedDocker = "Hay otro contenedor en ejecución. Lontrium se detuvo, pero Docker seguirá disponible para la otra aplicación."
+        ScheduleComplete = "Las tiendas habilitadas ya se completaron hoy. Liberando recursos..."
+        ScheduleSynced = "Programación automática de Windows actualizada."
         UpdateCheck = "Consultando la Release oficial de Lontrium Control..."
         UpToDate = "Lontrium Control ya está actualizado."
         UpdatePrompt = "¿Actualizar de la versión {0} a {1}? [S/n]"
@@ -138,6 +145,8 @@ if ($Action -eq "source") {
 $PanelUrl = "http://127.0.0.1:8080"
 $ReleaseApi = "https://api.github.com/repos/rafaelcairess/lontrium/releases/latest"
 $NotifierPath = Join-Path $PSScriptRoot "Lontrium.Notifier.exe"
+$ScheduledTaskName = "Lontrium Control - Automatic Collection"
+$PendingModePath = Join-Path $PSScriptRoot "installer-mode.pending"
 
 function Write-Step([string]$Message) {
     Write-Host "`n> $Message" -ForegroundColor Cyan
@@ -251,6 +260,60 @@ function Get-EnvironmentValue([string]$Name) {
     return ""
 }
 
+function Test-LontriumContainerRunning {
+    try {
+        $json = & docker inspect claimer-control 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $json) { return $false }
+        return [bool](@(ConvertFrom-Json -InputObject ($json -join [Environment]::NewLine))[0].State.Running)
+    } catch {
+        return $false
+    }
+}
+
+function Remove-WindowsSchedule {
+    Unregister-ScheduledTask -TaskName $ScheduledTaskName -Confirm:$false -ErrorAction SilentlyContinue
+}
+
+function Sync-WindowsSchedule {
+    $config = Get-DashboardJson "/api/config"
+    $values = $config.values
+    Remove-WindowsSchedule
+
+    $economy = [bool]$values.WINDOWS_ECONOMY_SCHEDULE
+    $runAtLogon = [bool]$values.RUN_ON_STARTUP
+    if (-not $economy -and -not $runAtLogon) { return }
+
+    $launcher = $PSCommandPath
+    if (-not $launcher) { $launcher = Join-Path $PSScriptRoot "Start-ClaimerControl.ps1" }
+    $scheduledAction = if ($economy) { "scheduled" } else { "start" }
+    $arguments = '-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Action {1} -Language auto' -f $launcher, $scheduledAction
+    $taskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $arguments -WorkingDirectory $PSScriptRoot
+    $triggers = @()
+    if ($runAtLogon) {
+        $triggers += New-ScheduledTaskTrigger -AtLogOn -User ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
+    }
+    if ($economy) {
+        foreach ($item in ([string]$values.SCHEDULER_FIXED_TIMES -split ',')) {
+            $parsed = [datetime]::MinValue
+            if ([datetime]::TryParseExact($item.Trim(), "HH:mm", [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed)) {
+                $triggers += New-ScheduledTaskTrigger -Daily -At $parsed
+            }
+        }
+    }
+    if ($triggers.Count -eq 0) { return }
+
+    $settingsArgs = @{
+        StartWhenAvailable = $true
+        MultipleInstances = "IgnoreNew"
+        ExecutionTimeLimit = (New-TimeSpan -Hours 2)
+    }
+    if ($economy -and [bool]$values.WINDOWS_WAKE_ON_AC) { $settingsArgs.WakeToRun = $true }
+    $taskSettings = New-ScheduledTaskSettingsSet @settingsArgs
+    $principal = New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
+    Register-ScheduledTask -TaskName $ScheduledTaskName -Action $taskAction -Trigger $triggers -Settings $taskSettings -Principal $principal -Description "Starts Lontrium only when an automatic collection is due." -Force | Out-Null
+    Write-Host $Script:Text.ScheduleSynced -ForegroundColor Green
+}
+
 function Get-LegacyDataVolumeFromInspect([string]$Json) {
     if ([string]::IsNullOrWhiteSpace($Json)) { return "" }
     try {
@@ -326,7 +389,7 @@ function Stop-WindowsNotifier {
 
 function Get-LatestReleaseTag {
     Write-Step $Script:Text.UpdateCheck
-    $release = Invoke-RestMethod -Uri $ReleaseApi -Headers @{Accept = "application/vnd.github+json"; "User-Agent" = "lontrium-launcher/1.3.0"} -TimeoutSec 15
+    $release = Invoke-RestMethod -Uri $ReleaseApi -Headers @{Accept = "application/vnd.github+json"; "User-Agent" = "lontrium-launcher/1.4.0"} -TimeoutSec 15
     $tag = [string]$release.tag_name
     if ($tag -notmatch "^v\d+\.\d+\.\d+$") { throw $Script:Text.UpdateInvalid }
     return $tag
@@ -339,7 +402,9 @@ function Start-Application {
     Write-Step $Script:Text.Starting
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
+    Apply-PendingInstallerMode
     Start-WindowsNotifier
+    Sync-WindowsSchedule
     Write-Host $Script:Text.Ready -ForegroundColor Green
     Start-Process $PanelUrl | Out-Null
 }
@@ -355,6 +420,77 @@ function Start-SourceApplication {
 
 function Get-DashboardJson([string]$Path) {
     return Invoke-RestMethod -Uri "$PanelUrl$Path" -Method Get -TimeoutSec 5
+}
+
+function Get-DashboardToken {
+    $page = Invoke-WebRequest -UseBasicParsing -Uri $PanelUrl -TimeoutSec 5
+    $match = [regex]::Match([string]$page.Content, '<meta\s+name="fgc-token"\s+content="([A-Za-z0-9_-]+)"')
+    if (-not $match.Success) { throw "Local dashboard token was not found" }
+    return $match.Groups[1].Value
+}
+
+function Set-PendingInstallerMode([string]$Mode) {
+    if ($Mode -notin @("economy", "dashboard", "manual")) { throw "Invalid installer mode" }
+    Set-Content -LiteralPath $PendingModePath -Value $Mode -Encoding ASCII
+}
+
+function Apply-PendingInstallerMode {
+    if (-not (Test-Path -LiteralPath $PendingModePath)) { return }
+    $mode = (Get-Content -LiteralPath $PendingModePath -Raw -Encoding ASCII).Trim()
+    if ($mode -notin @("economy", "dashboard", "manual")) { throw "Invalid pending installer mode" }
+    $values = if ($mode -eq "economy") {
+        @{
+            WINDOWS_ECONOMY_SCHEDULE = $true
+            RUN_ON_STARTUP = $true
+            SCHEDULER_HOURS = 0
+            SCHEDULER_FIXED_TIMES = "12:00,16:00,19:00"
+        }
+    } elseif ($mode -eq "dashboard") {
+        @{
+            WINDOWS_ECONOMY_SCHEDULE = $false
+            RUN_ON_STARTUP = $true
+            SCHEDULER_HOURS = 0
+            SCHEDULER_FIXED_TIMES = ""
+        }
+    } else {
+        @{
+            WINDOWS_ECONOMY_SCHEDULE = $false
+            RUN_ON_STARTUP = $false
+            SCHEDULER_HOURS = 0
+            SCHEDULER_FIXED_TIMES = ""
+        }
+    }
+    $payload = @{values = $values} | ConvertTo-Json -Compress
+    Invoke-RestMethod -Uri "$PanelUrl/api/config" -Method Post -ContentType "application/json" -Headers @{"X-FGC-Token" = (Get-DashboardToken)} -Body $payload -TimeoutSec 15 | Out-Null
+    Remove-Item -LiteralPath $PendingModePath -Force
+}
+
+function Invoke-ScheduledDashboardRun {
+    $token = Get-DashboardToken
+    $now = Get-Date
+    $payload = @{
+        mode = "scheduled-retry"
+        localDate = $now.ToString("yyyy-MM-dd", [Globalization.CultureInfo]::InvariantCulture)
+        utcOffsetMinutes = [int][TimeZoneInfo]::Local.GetUtcOffset($now).TotalMinutes
+    } | ConvertTo-Json -Compress
+    return Invoke-RestMethod -Uri "$PanelUrl/api/run" -Method Post -ContentType "application/json" -Headers @{"X-FGC-Token" = $token} -Body $payload -TimeoutSec 15
+}
+
+function Wait-ScheduledRun([string]$RunId) {
+    if ($RunId -notmatch "^[a-f0-9]{32}$") { throw "Invalid scheduled run identifier" }
+    Write-Step $Script:Text.EconomyWaiting
+    for ($attempt = 1; $attempt -le 720; $attempt++) {
+        $status = Get-DashboardJson "/api/status"
+        $records = @($status.history | Where-Object { $_.runId -eq $RunId })
+        if (-not $status.running -and $records.Count -gt 0) {
+            Write-Host " OK" -ForegroundColor Green
+            return $true
+        }
+        if (($attempt % 6) -eq 0) { Write-Host "." -NoNewline }
+        Start-Sleep -Seconds 5
+    }
+    Write-Host $Script:Text.EconomyTimeout -ForegroundColor Yellow
+    return $false
 }
 
 function Wait-EconomyRun {
@@ -407,9 +543,14 @@ function Get-RunningContainerIds {
     return $containers
 }
 
-function Stop-DockerAfterEconomyRun {
-    Stop-WindowsNotifier
-    Invoke-Compose @("stop", "app")
+function Stop-DockerAfterEconomyRun(
+    [bool]$StopApp = $true,
+    [bool]$StopDocker = $true,
+    [bool]$StopNotifier = $true
+) {
+    if ($StopNotifier) { Stop-WindowsNotifier }
+    if ($StopApp) { Invoke-Compose @("stop", "app") }
+    if (-not $StopDocker) { return }
     $otherContainers = @(Get-RunningContainerIds)
     if ($otherContainers.Count -gt 0) {
         Write-Host $Script:Text.EconomySharedDocker -ForegroundColor Yellow
@@ -434,12 +575,41 @@ function Stop-DockerAfterEconomyRun {
     }
 }
 
+function Start-ScheduledApplication(
+    [bool]$DockerWasRunning,
+    [bool]$AppWasRunning
+) {
+    Adopt-LegacyData
+    Write-Step $Script:Text.Starting
+    Invoke-Compose @("up", "-d", "app")
+    Wait-Panel
+    Start-WindowsNotifier
+    Sync-WindowsSchedule
+    $config = Get-DashboardJson "/api/config"
+    if ($config.setup.required -and -not $config.setup.complete) {
+        Write-Host $Script:Text.EconomySetup -ForegroundColor Yellow
+        Start-Process $PanelUrl | Out-Null
+        return
+    }
+    $run = Invoke-ScheduledDashboardRun
+    if (-not $run.accepted -and $run.reason -eq "already-complete") {
+        Write-Host $Script:Text.ScheduleComplete -ForegroundColor Green
+        Stop-DockerAfterEconomyRun -StopApp (-not $AppWasRunning) -StopDocker (-not $DockerWasRunning) -StopNotifier (-not $AppWasRunning)
+        return
+    }
+    if (-not $run.accepted) { throw "The scheduled run was not accepted: $($run.reason)" }
+    if (Wait-ScheduledRun ([string]$run.runId)) {
+        Stop-DockerAfterEconomyRun -StopApp (-not $AppWasRunning) -StopDocker (-not $DockerWasRunning) -StopNotifier (-not $AppWasRunning)
+    }
+}
+
 function Start-EconomyApplication {
     Adopt-LegacyData
     Write-Step $Script:Text.Starting
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
     Start-WindowsNotifier
+    Sync-WindowsSchedule
     if (Wait-EconomyRun) {
         Stop-DockerAfterEconomyRun
     }
@@ -456,11 +626,12 @@ function Update-Application {
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
     Start-WindowsNotifier
+    Sync-WindowsSchedule
     Start-Process $PanelUrl | Out-Null
 }
 
 function Invoke-ClaimerControl(
-    [ValidateSet("start", "economy", "source", "update", "uninstall", "check")]
+    [ValidateSet("start", "economy", "scheduled", "sync-schedule", "configure-economy", "configure-dashboard", "configure-manual", "source", "update", "uninstall", "check")]
     [string]$RequestedAction = $Action
 ) {
     try {
@@ -469,10 +640,51 @@ function Invoke-ClaimerControl(
             throw "Required launcher files are missing"
         }
         if ($RequestedAction -eq "check") { Write-Host $Script:Text.CheckOk -ForegroundColor Green; return 0 }
+        if ($RequestedAction -eq "configure-economy") {
+            if ($InstallTag) {
+                if ($InstallTag -notmatch "^(latest|v\d+\.\d+\.\d+)$") { throw "Invalid installer image tag" }
+                Set-EnvironmentValue "CLAIMER_TAG" $InstallTag
+            }
+            Set-EnvironmentValue "WINDOWS_ECONOMY_SCHEDULE" "true"
+            Set-EnvironmentValue "RUN_ON_STARTUP" "true"
+            Set-PendingInstallerMode "economy"
+            return 0
+        }
+        if ($RequestedAction -eq "configure-dashboard") {
+            if ($InstallTag) {
+                if ($InstallTag -notmatch "^(latest|v\d+\.\d+\.\d+)$") { throw "Invalid installer image tag" }
+                Set-EnvironmentValue "CLAIMER_TAG" $InstallTag
+            }
+            Set-EnvironmentValue "WINDOWS_ECONOMY_SCHEDULE" "false"
+            Set-EnvironmentValue "RUN_ON_STARTUP" "true"
+            Set-PendingInstallerMode "dashboard"
+            Remove-WindowsSchedule
+            return 0
+        }
+        if ($RequestedAction -eq "configure-manual") {
+            if ($InstallTag) {
+                if ($InstallTag -notmatch "^(latest|v\d+\.\d+\.\d+)$") { throw "Invalid installer image tag" }
+                Set-EnvironmentValue "CLAIMER_TAG" $InstallTag
+            }
+            Set-EnvironmentValue "WINDOWS_ECONOMY_SCHEDULE" "false"
+            Set-EnvironmentValue "RUN_ON_STARTUP" "false"
+            Set-PendingInstallerMode "manual"
+            Remove-WindowsSchedule
+            return 0
+        }
+        if ($RequestedAction -eq "sync-schedule") { Sync-WindowsSchedule; return 0 }
+        if ($RequestedAction -eq "uninstall") {
+            Remove-WindowsSchedule
+            Stop-WindowsNotifier
+            if (-not (Test-DockerCommandAvailable)) { return 0 }
+        }
+        $dockerWasRunning = Test-DockerReady
         if (-not (Test-DockerCommandAvailable)) { Install-DockerDesktop }
         Wait-DockerDesktop
+        $appWasRunning = Test-LontriumContainerRunning
         if ($RequestedAction -eq "update") { Update-Application }
         elseif ($RequestedAction -eq "economy") { Start-EconomyApplication }
+        elseif ($RequestedAction -eq "scheduled") { Start-ScheduledApplication -DockerWasRunning $dockerWasRunning -AppWasRunning $appWasRunning }
         elseif ($RequestedAction -eq "source") { Start-SourceApplication }
         elseif ($RequestedAction -eq "uninstall") {
             Stop-WindowsNotifier

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from threading import Lock
 from uuid import uuid4
 
@@ -119,6 +119,39 @@ def store_result_message_key(store_key: str, result) -> str | None:
     return None
 
 
+def store_result_succeeded(store_key: str, result) -> bool:
+    """Return whether a result is complete enough to skip later retries today."""
+    if store_key in {"aliexpress", "shopee"}:
+        checkin = result.get("checkin") if isinstance(result, dict) else None
+        return isinstance(checkin, dict) and checkin.get("outcome") in {
+            "collected", "collected_manual", "already_collected",
+        }
+    if not isinstance(result, dict):
+        return True
+    outcomes = [
+        _game_outcome(str(game.get("status", "")))
+        for game in result.get("games") or []
+        if isinstance(game, dict)
+    ]
+    return not any(outcome in {"failed", "action_required"} for outcome in outcomes)
+
+
+def _history_record_succeeded(record: dict) -> bool:
+    if record.get("state") != "success":
+        return False
+    details = record.get("details")
+    if not isinstance(details, dict):
+        return True
+    if details.get("kind") == "coins":
+        return details.get("outcome") in {"collected", "collected_manual", "already_collected"}
+    if details.get("kind") == "games":
+        return not any(
+            isinstance(item, dict) and item.get("outcome") in {"failed", "action_required"}
+            for item in details.get("items") or []
+        )
+    return True
+
+
 class DashboardState:
     def __init__(self) -> None:
         self._lock = Lock()
@@ -171,7 +204,7 @@ class DashboardState:
             events = deepcopy(list(self._manual_actions.values())) if enabled else []
         return {"enabled": bool(enabled), "events": events}
 
-    def begin_run(self, store_keys: list[str]) -> None:
+    def begin_run(self, store_keys: list[str]) -> str:
         with self._lock:
             self._running = True
             self._run_id = uuid4().hex
@@ -182,6 +215,31 @@ class DashboardState:
                     self._stores[key].update(
                         state="queued", message="Na fila", messageKey="status.queued", details=None
                     )
+            return self._run_id
+
+    def pending_stores_for_day(
+        self,
+        enabled: list[str],
+        local_day: date,
+        utc_offset_minutes: int,
+    ) -> list[str]:
+        """Return enabled stores without a successful result on the host's local day."""
+        offset = timezone(timedelta(minutes=utc_offset_minutes))
+        start = datetime.combine(local_day, time.min, tzinfo=offset).astimezone(timezone.utc)
+        end = start + timedelta(days=1)
+        with self._lock:
+            completed = {
+                record["store"]
+                for record in self._history
+                if _history_record_succeeded(record)
+                and record.get("store") in enabled
+                and _in_utc_window(record.get("finishedAt"), start, end)
+            }
+        return [store for store in enabled if store not in completed]
+
+    def current_run_id(self) -> str | None:
+        with self._lock:
+            return self._run_id
 
     def begin_store(self, key: str) -> None:
         with self._lock:
@@ -274,6 +332,7 @@ class DashboardState:
             stores = deepcopy(list(self._stores.values()))
             payload = {
                 "running": self._running,
+                "runId": self._run_id,
                 "startedAt": self._started_at,
                 "finishedAt": self._finished_at,
                 "stores": stores,
@@ -284,6 +343,19 @@ class DashboardState:
             store["enabled"] = store["key"] in enabled_set
         payload["schedule"] = schedule or {}
         return payload
+
+
+def _in_utc_window(value, start: datetime, end: datetime) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    parsed = parsed.astimezone(timezone.utc)
+    return start <= parsed < end
 
 
 dashboard_state = DashboardState()

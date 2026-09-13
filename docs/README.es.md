@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **Lontrium Control v1.3.0 ya está disponible.** Descarga el instalador de arriba y verifícalo con [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **Lontrium Control v1.4.0 ya está disponible.** Descarga el instalador de arriba y verifícalo con [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="images/05-dashboard.png" alt="Panel de Lontrium Control con resultados de juegos, AliExpress y Shopee" width="1100">
@@ -38,7 +38,8 @@
 - Reclama juegos, recursos y recompensas elegibles en las tiendas seleccionadas.
 - Recoge monedas diarias de AliExpress y Shopee y muestra el resultado y el saldo.
 - Informa el resultado real de cada ejecución, no solo una cantidad genérica.
-- Funciona con un horario y puede iniciarse automáticamente con Windows.
+- En Windows usa tareas nativas al iniciar sesión y a las 12:00, 16:00 y 19:00, y después libera la memoria de Docker/WSL.
+- No repite tiendas ya completadas ese día; los horarios posteriores solo reintentan fallos, login/CAPTCHA o tiendas aún no ejecutadas.
 - Abre un navegador visual cuando una tienda requiere inicio de sesión o confirmación manual.
 - Mantiene el panel, la configuración, la base de datos y las sesiones en tu computadora.
 - Conserva durante 90 días un historial saneado que permanece tras reinicios y actualizaciones.
@@ -75,7 +76,7 @@ El asistente presenta seis decisiones prácticas sin exigir conocimientos de var
 2. **Tiendas** — solo las seleccionadas aparecen en el panel y participan en las ejecuciones.
 3. **Inicio de sesión** — el navegador es la opción recomendada; guardar credenciales localmente es opcional.
 4. **Cuentas** — con el navegador no se solicita ninguna contraseña. En el otro modo solo aparecen campos de las tiendas elegidas.
-5. **Automatización** — elige ejecutar al iniciar Lontrium y a diario, solo a diario o solo manualmente.
+5. **Automatización** — elige modo económico automático (recomendado), panel siempre disponible o uso manual. Los horarios son editables.
 6. **Revisión** — confirma dónde quedan los datos y explica el siguiente paso.
 
 Después de **Finalizar y ejecutar**, el panel abre las tiendas elegidas. Cuando una necesite autenticación, abre **Navegador** e inicia sesión en el sitio oficial. El perfil persistente reutiliza la sesión hasta que la propia tienda la caduque.
@@ -85,12 +86,14 @@ Puedes volver a ver toda la introducción desde **Configuración → Introducci�
 ## Cómo funciona
 
 ```text
-Acceso directo → Docker Desktop → contenedor local
-                                    ├─ panel en 127.0.0.1:8080
-                                    ├─ navegador visual en 127.0.0.1:7080
-                                    ├─ módulos de tiendas seleccionadas
-                                    └─ volumen local persistente
-                                       (configuración, sesiones e historial)
+Programador de Windows (inicio de sesión + horarios configurados)
+      ├─ inicia Docker y el contenedor solo cuando hacen falta
+      ├─ ejecuta únicamente tiendas pendientes en el día local
+      └─ detiene solo los recursos que inició
+             ├─ panel en 127.0.0.1:8080
+             ├─ navegador visual en 127.0.0.1:7080
+             └─ volumen local persistente
+                (configuración, sesiones e historial)
 ```
 
 Cada módulo abre el sitio oficial, comprueba la oferta o recompensa y guarda un resultado estructurado. Los juegos muestran título y resultado; AliExpress y Shopee muestran monedas y los datos de saldo o racha disponibles. CAPTCHA, antifraude y verificaciones de cuenta vuelven al usuario en el navegador visual y nunca se eluden. En Windows, un pequeño auxiliar nativo puede avisar cuando un CAPTCHA requiere atención y abrir la sesión local del navegador con un clic.
@@ -139,7 +142,7 @@ El inicio de sesión en el navegador es la opción recomendada, por lo que el as
 
 Al actualizar una instalación antigua, el launcher puede preguntar si debe reutilizar cuentas y sesiones existentes. Elige **Sí**, salvo que quieras un perfil limpio. Se sustituye el contenedor, pero se conserva el volumen persistente seleccionado.
 
-El acceso directo normal comprueba Docker, inicia el servicio, espera al panel y lo abre automáticamente. Para el inicio con Windows, el instalador ofrece el modo económico (predeterminado), que espera la ejecución y libera la memoria WSL de Docker, o el modo panel, que mantiene disponible el panel local. Al desinstalar Lontrium Control se conservan las cuentas y sesiones por defecto; borrar los datos locales es una opción separada y explícita. Docker Desktop nunca se elimina automáticamente.
+El acceso directo normal sigue abriendo el panel cuando quieras. En modo económico automático, Windows inicia Lontrium al entrar y en los horarios configurados (12:00, 16:00 y 19:00 por defecto). Una tienda completada con éxito no vuelve a ejecutarse ese día; solo las pendientes se reintentan después. Docker, el contenedor y el notificador se cierran únicamente si la tarea los inició. Ningún proceso de Lontrium queda residente entre horarios. Si Docker o el panel ya estaban abiertos, permanecen abiertos. La desinstalación elimina solo la tarea de Lontrium y conserva cuentas y sesiones salvo que se solicite explícitamente borrar los datos locales.
 
 ## ¿Necesitas ayuda?
 

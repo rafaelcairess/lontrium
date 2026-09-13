@@ -8,8 +8,11 @@ Describe "Lontrium Control launcher flow" {
         Mock Wait-DockerDesktop {}
         Mock Start-Application {}
         Mock Start-EconomyApplication {}
+        Mock Start-ScheduledApplication {}
         Mock Start-SourceApplication {}
         Mock Install-DockerDesktop {}
+        Mock Test-DockerReady { $false }
+        Mock Test-LontriumContainerRunning { $false }
     }
 
     It "starts directly when Docker is installed" {
@@ -52,6 +55,17 @@ Describe "Lontrium Control launcher flow" {
         if ($result -ne 0) { throw "Expected launcher exit code 0, got $result" }
         Assert-MockCalled Start-EconomyApplication -Times 1 -Exactly -Scope It
         Assert-MockCalled Start-Application -Times 0 -Exactly -Scope It
+    }
+
+    It "uses the scheduled flow with resource ownership information" {
+        Mock Test-DockerCommandAvailable { $true }
+        Mock Test-DockerReady { $true }
+        Mock Test-LontriumContainerRunning { $true }
+        $result = Invoke-ClaimerControl -RequestedAction scheduled
+        if ($result -ne 0) { throw "Expected launcher exit code 0, got $result" }
+        Assert-MockCalled Start-ScheduledApplication -Times 1 -Exactly -Scope It -ParameterFilter {
+            $DockerWasRunning -and $AppWasRunning
+        }
     }
 }
 
@@ -142,6 +156,9 @@ Describe "Application identity" {
         if ($installer -notmatch 'Source: "claimer\.env";[^\r\n]+onlyifdoesntexist') {
             throw "Installer upgrades could replace the user's persistent volume configuration"
         }
+        if ($installer -notmatch '-InstallTag ""\{#MyImageTag\}""') {
+            throw "Installer upgrades could keep running an older application image"
+        }
     }
 
     It "offers exclusive economy and persistent-dashboard startup modes" {
@@ -152,11 +169,17 @@ Describe "Application identity" {
         if ($installer -notmatch 'Name: "autostart\\dashboard";[^\r\n]+Flags: exclusive') {
             throw "Persistent dashboard mode is not an exclusive startup choice"
         }
-        if ($installer -notmatch '\{userstartup\}\\Lontrium Control[^\r\n]+-Action economy[^\r\n]+Tasks: autostart\\economy') {
-            throw "The economy startup shortcut is not scoped to economy mode"
+        if ($installer -match 'Name: "\{userstartup\}\\Lontrium Control"') {
+            throw "Legacy Startup-folder shortcuts can conflict with the native scheduled task"
         }
-        if ($installer -notmatch '\{userstartup\}\\Lontrium Control[^\r\n]+Start-ClaimerControl\.cmd[^\r\n]+Tasks: autostart\\dashboard') {
-            throw "The persistent startup shortcut is not scoped to dashboard mode"
+        if ($installer -notmatch '-Action configure-economy[^\r\n]+Tasks: autostart\\economy') {
+            throw "The installer does not persist the selected economy mode"
+        }
+        if ($installer -notmatch '-Action configure-dashboard[^\r\n]+Tasks: autostart\\dashboard') {
+            throw "The installer does not persist the selected dashboard mode"
+        }
+        if ($installer -notmatch '-Action configure-manual[^\r\n]+Tasks: not autostart') {
+            throw "Declining Windows automation would leave an old scheduled task active"
         }
         if ($installer -notmatch '\{autodesktop\}\\Lontrium Control[^\r\n]+Start-ClaimerControl\.cmd') {
             throw "The normal desktop shortcut should keep the dashboard running"
@@ -164,6 +187,95 @@ Describe "Application identity" {
         if ($installer -notmatch 'Type: files; Name: "\{userstartup\}\\Lontrium Control\.lnk"') {
             throw "Installer upgrades could leave the previously selected startup mode behind"
         }
+    }
+
+    It "leaves the packaged container lifecycle to Windows Task Scheduler" {
+        $compose = Get-Content -LiteralPath "$PSScriptRoot/../installer/docker-compose.yml" -Raw
+        if ($compose -notmatch 'restart:\s+"no"') {
+            throw "The packaged container could restart itself and keep Docker resident"
+        }
+    }
+}
+
+Describe "Windows Task Scheduler automation" {
+    BeforeAll {
+        . "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Action start -Language en
+    }
+
+    BeforeEach {
+        Mock Get-DashboardJson {
+            [pscustomobject]@{values = [pscustomobject]@{
+                WINDOWS_ECONOMY_SCHEDULE = $true
+                WINDOWS_WAKE_ON_AC = $true
+                RUN_ON_STARTUP = $true
+                SCHEDULER_FIXED_TIMES = "12:00,16:00,19:00"
+            }}
+        }
+        Mock Unregister-ScheduledTask {}
+        Mock Register-ScheduledTask {}
+    }
+
+    It "registers logon and three daily triggers without overlapping runs" {
+        Sync-WindowsSchedule
+        Assert-MockCalled Register-ScheduledTask -Times 1 -Exactly -Scope It -ParameterFilter {
+            $TaskName -eq "Lontrium Control - Automatic Collection" -and
+            @($Trigger).Count -eq 4 -and
+            $Settings.StartWhenAvailable -and
+            $Settings.WakeToRun -and
+            [string]$Settings.MultipleInstances -eq "IgnoreNew" -and
+            $Action.Arguments -match '-Action scheduled'
+        }
+    }
+
+    It "removes only the Lontrium scheduled task" {
+        Remove-WindowsSchedule
+        Assert-MockCalled Unregister-ScheduledTask -Times 1 -Exactly -Scope It -ParameterFilter {
+            $TaskName -eq "Lontrium Control - Automatic Collection"
+        }
+    }
+}
+
+Describe "Scheduled collection ownership" {
+    BeforeAll {
+        . "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Action scheduled -Language en
+    }
+
+    BeforeEach {
+        Mock Adopt-LegacyData {}
+        Mock Write-Step {}
+        Mock Invoke-Compose {}
+        Mock Wait-Panel {}
+        Mock Start-WindowsNotifier {}
+        Mock Sync-WindowsSchedule {}
+        Mock Get-DashboardJson { [pscustomobject]@{setup = [pscustomobject]@{required = $true; complete = $true}} }
+        Mock Invoke-ScheduledDashboardRun { [pscustomobject]@{accepted = $true; runId = ("a" * 32); stores = @("epic")} }
+        Mock Wait-ScheduledRun { $true }
+        Mock Stop-DockerAfterEconomyRun {}
+        Mock Start-Process {}
+    }
+
+    It "does not stop a dashboard or Docker engine that the user already had open" {
+        Start-ScheduledApplication -DockerWasRunning $true -AppWasRunning $true
+        Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It -ParameterFilter {
+            -not $StopApp -and -not $StopDocker -and -not $StopNotifier
+        }
+    }
+
+    It "stops all resources that the scheduled run started" {
+        Start-ScheduledApplication -DockerWasRunning $false -AppWasRunning $false
+        Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It -ParameterFilter {
+            $StopApp -and $StopDocker -and $StopNotifier
+        }
+    }
+
+    It "opens setup and leaves resources available when onboarding is incomplete" {
+        Mock Get-DashboardJson { [pscustomobject]@{setup = [pscustomobject]@{required = $true; complete = $false}} }
+        Start-ScheduledApplication -DockerWasRunning $false -AppWasRunning $false
+        Assert-MockCalled Start-Process -Times 1 -Exactly -Scope It -ParameterFilter {
+            $FilePath -eq "http://127.0.0.1:8080"
+        }
+        Assert-MockCalled Invoke-ScheduledDashboardRun -Times 0 -Exactly -Scope It
+        Assert-MockCalled Stop-DockerAfterEconomyRun -Times 0 -Exactly -Scope It
     }
 }
 

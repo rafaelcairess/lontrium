@@ -1,5 +1,6 @@
 #define MyAppName "Lontrium Control"
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.4.0"
+#define MyImageTag "latest"
 #define MyAppPublisher "Rafael Caires"
 #define MyAppURL "https://github.com/rafaelcairess/lontrium"
 
@@ -34,17 +35,17 @@ Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"; InfoBeforeFile: "sec
 
 [CustomMessages]
 en.AutoStartTask=Start Lontrium Control when I sign in to Windows
-en.EconomyModeTask=Economy mode — run claims, then stop Docker and release WSL memory
+en.EconomyModeTask=Automatic economy mode — run at sign-in, 12:00, 16:00 and 19:00, then stop Docker
 en.DashboardModeTask=Dashboard mode — keep Lontrium Control and Docker running
 en.AutomationGroup=Automation
 en.StartAfterInstall=Start Lontrium Control
 ptbr.AutoStartTask=Iniciar o Lontrium Control ao entrar no Windows
-ptbr.EconomyModeTask=Modo econômico — coletar e depois fechar o Docker e liberar a memória WSL
+ptbr.EconomyModeTask=Modo econômico automático — executar ao entrar, 12:00, 16:00 e 19:00, depois fechar o Docker
 ptbr.DashboardModeTask=Modo painel — manter o Lontrium Control e o Docker ligados
 ptbr.AutomationGroup=Automação
 ptbr.StartAfterInstall=Iniciar o Lontrium Control
 es.AutoStartTask=Iniciar Lontrium Control al entrar en Windows
-es.EconomyModeTask=Modo económico — ejecutar y luego cerrar Docker y liberar la memoria WSL
+es.EconomyModeTask=Modo económico automático — ejecutar al entrar, 12:00, 16:00 y 19:00, y cerrar Docker
 es.DashboardModeTask=Modo panel — mantener Lontrium Control y Docker activos
 es.AutomationGroup=Automatización
 es.StartAfterInstall=Iniciar Lontrium Control
@@ -68,8 +69,6 @@ Source: "windows-notifier\bin\Release\net48\Lontrium.Notifier.exe.config"; DestD
 [Icons]
 Name: "{group}\Lontrium Control"; Filename: "{app}\Start-ClaimerControl.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"; AppUserModelID: "RafaelCaires.LontriumControl"
 Name: "{autodesktop}\Lontrium Control"; Filename: "{app}\Start-ClaimerControl.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"; Tasks: desktopicon
-Name: "{userstartup}\Lontrium Control"; Filename: "powershell.exe"; Parameters: "-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\Start-ClaimerControl.ps1"" -Action economy"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"; Tasks: autostart\economy
-Name: "{userstartup}\Lontrium Control"; Filename: "{app}\Start-ClaimerControl.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"; Tasks: autostart\dashboard
 Name: "{group}\Uninstall Lontrium Control"; Filename: "{uninstallexe}"
 
 [InstallDelete]
@@ -89,6 +88,9 @@ Root: HKCU; Subkey: "Software\Classes\claimer-control"; ValueType: string; Value
 Root: HKCU; Subkey: "Software\Classes\claimer-control\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """powershell.exe"" -NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{app}\Start-ClaimerControl.ps1"" -Action update"; Flags: uninsdeletekey
 
 [Run]
+Filename: "powershell.exe"; Parameters: "-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\Start-ClaimerControl.ps1"" -Action configure-economy -InstallTag ""{#MyImageTag}"""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; Tasks: autostart\economy
+Filename: "powershell.exe"; Parameters: "-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\Start-ClaimerControl.ps1"" -Action configure-dashboard -InstallTag ""{#MyImageTag}"""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; Tasks: autostart\dashboard
+Filename: "powershell.exe"; Parameters: "-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\Start-ClaimerControl.ps1"" -Action configure-manual -InstallTag ""{#MyImageTag}"""; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; Tasks: not autostart
 Filename: "{app}\Start-ClaimerControl.cmd"; Description: "{cm:StartAfterInstall}"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]

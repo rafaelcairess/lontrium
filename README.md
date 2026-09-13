@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **Lontrium Control v1.3.0 is available now.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **Lontrium Control v1.4.0 is available now.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="docs/images/05-dashboard.png" alt="Lontrium Control dashboard showing game, AliExpress and Shopee results" width="1100">
@@ -38,7 +38,8 @@
 - Claims eligible free games, assets and rewards from your selected stores.
 - Collects daily coin rewards from AliExpress and Shopee and shows the result and balance.
 - Shows the actual result of each run instead of only a generic success count.
-- Runs on a schedule and can start automatically with Windows.
+- On Windows, uses native scheduled tasks at sign-in, 12:00, 16:00 and 19:00, then releases Docker/WSL memory.
+- Skips stores already completed that day and retries only stores that failed, need login/CAPTCHA or have not run yet.
 - Opens a visual browser whenever a store requires manual login or confirmation.
 - Keeps the dashboard, settings, database and browser sessions on your computer.
 - Preserves a privacy-safe 90-day activity history across container restarts and app updates.
@@ -82,7 +83,7 @@ The assistant asks six practical questions instead of exposing the full environm
 2. **Stores** — only selected stores appear on the dashboard or participate in scheduled runs.
 3. **Login method** — browser login is recommended; saving supported credentials locally remains optional.
 4. **Accounts** — when browser login is selected, no password is requested. Otherwise, only fields for selected stores are shown.
-5. **Automation** — choose a run when Lontrium starts plus a daily time, daily only, or manual only. Advanced intervals remain in Settings.
+5. **Automation** — choose automatic economy mode (recommended), an always-available dashboard, or manual-only use. Economy times are editable.
 6. **Review** — confirms where data stays and explains exactly what will happen after finishing.
 
 After **Finish and run**, Lontrium opens the dashboard and starts the selected services. If a store needs authentication, open **Browser**, finish the login on the official page and return to the dashboard. The browser profile is persistent, so this is normally required only on first use or after the store expires its own session.
@@ -92,15 +93,14 @@ You can revisit the complete introduction later from **Settings → Introduction
 ## How it works
 
 ```text
-Windows shortcut
+Windows Task Scheduler (sign-in + configured daily times)
       │
-      ├─ checks/starts Docker Desktop
-      ├─ pulls the selected Lontrium image
-      └─ starts the local container
+      ├─ starts Docker Desktop and the local container only when needed
+      ├─ runs stores without a successful result for the current local day
+      └─ stops resources it started after the run
                  │
                  ├─ dashboard → http://127.0.0.1:8080
                  ├─ visual browser → http://127.0.0.1:7080
-                 ├─ scheduler → runs only enabled stores
                  └─ local volume
                        ├─ settings and optional credentials
                        ├─ separate browser profile per store
@@ -153,7 +153,7 @@ Browser login is the recommended default, so the assistant does not request pass
 
 When upgrading from the older Free Games Claimer layout, the launcher may ask whether it should reuse existing local accounts and sessions. Choose **Yes** unless you intentionally want a clean profile. Lontrium changes the container and application image, not the selected persistent data volume.
 
-The normal Windows shortcut checks Docker, starts the service, waits for the dashboard and opens it automatically. For Windows sign-in, the installer offers economy mode (the default), which waits for the claim run and releases Docker's WSL memory, or dashboard mode, which keeps the local panel available. Uninstalling Lontrium Control keeps accounts and sessions by default; deleting local data is a separate, explicit option. Docker Desktop is never removed automatically.
+The normal shortcut still opens the dashboard on demand. In automatic economy mode, Windows triggers Lontrium at sign-in and at the configured times (12:00, 16:00 and 19:00 by default). A store that succeeds once is skipped for the rest of that local day; only unfinished stores retry later. Docker Desktop, the container and the notification helper are stopped afterward only when that scheduled run started them. Nothing from Lontrium remains resident between runs. If Docker or the dashboard was already open, Lontrium leaves it open. Uninstalling removes only Lontrium's scheduled task and keeps accounts and sessions unless local-data deletion is explicitly selected.
 
 ## Need help?
 

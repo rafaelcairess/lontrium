@@ -42,7 +42,7 @@
     "noPasswordCopy": "You can sign in manually on every supported store that requires an account. Lontrium keeps the resulting browser session locally and reuses it until the store expires it.", "openIntroduction": "View introduction",
     "STORES": {"label": "Enabled stores"}, "SCHEDULER_HOURS": {"label": "Interval in hours"},
     "SCHEDULER_FIXED_TIMES": {"label": "Fixed times"}, "SCHEDULER_TIMEZONE": {"label": "Timezone"},
-    "RUN_ON_STARTUP": {"label": "Run when the app starts"}, "SHOW": {"label": "Show browser in VNC"},
+    "RUN_ON_STARTUP": {"label": "Run when signing in to Windows"}, "WINDOWS_ECONOMY_SCHEDULE": {"label": "Automatic Windows economy mode"}, "WINDOWS_WAKE_ON_AC": {"label": "Wake for runs while connected to power"}, "SHOW": {"label": "Show browser in VNC"},
     "VNC_LOGIN_TIMEOUT": {"label": "Manual login wait (seconds)"}, "NOTIFY_SUMMARY": {"label": "Send summary"},
     "NOTIFY_ERRORS": {"label": "Notify errors"}, "NOTIFY_CLAIM_FAILS": {"label": "Notify claim failures"},
     "NOTIFY_LOGIN_REQUEST": {"label": "Notify when login is required"}, "WINDOWS_NOTIFICATIONS": {"label": "Windows notifications for manual actions"}, "DISCORD_WEBHOOK": {"label": "Discord webhook"},
@@ -103,6 +103,7 @@
     "finish": "Finish and run", "selectedStores": "Selected stores", "loginMethod": "Login method", "credentialsConfigured": "Accounts filled now", "noneStoredNow": "None — browser login selected", "automation": "Automation", "nextStep": "What happens next", "nextManualLogin": "The dashboard opens and starts the selected stores. Use Browser when a store asks you to sign in.", "nextRun": "The dashboard opens and starts the selected stores.", "interval": "Run interval", "hours": "every {count} hours",
     "manualSchedule": "manual or fixed times only", "localOnly": "Dashboard available only on this computer"
   },
+  "hostSchedule": {"economyTitle": "Automatic economy mode", "economyCopy": "Run at sign-in and at 12:00, 16:00 and 19:00. Docker closes after pending stores finish.", "dashboardTitle": "Keep the dashboard available", "dashboardCopy": "Start Lontrium at sign-in and keep Docker running for immediate access.", "pendingStores": "Pending today", "completedToday": "Completed today", "retryPending": "Retry scheduled"},
   "update": {"available": "Version {version} is available.", "review": "Review update", "confirm": "Open the local updater to install version {version}?", "current": "You are up to date."},
   "error": {
     "generic": "The operation could not be completed.", "invalidSettings": "Check the settings and try again.", "integer": "Enter a whole number.", "minimum": "The value is below the allowed minimum.",

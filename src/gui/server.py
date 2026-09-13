@@ -31,7 +31,7 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         setup_callback: Callable[[dict], Awaitable[dict]],
         update_callback: Callable[[], Awaitable[dict]],
         manual_actions_callback: Callable[[], Awaitable[dict]],
-        run_callback: Callable[[list[str] | None], Awaitable[bool]],
+        run_callback: Callable[..., Awaitable[bool | dict]],
     ) -> None:
         super().__init__(address, DashboardHandler)
         self.loop = loop
@@ -158,9 +158,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 stores = payload.get("stores")
                 if stores is not None and not isinstance(stores, list):
                     raise ValueError("Lista de lojas inválida")
-                accepted = self.server.await_result(self.server.run_callback(stores))
-                status = HTTPStatus.ACCEPTED if accepted else HTTPStatus.CONFLICT
-                self._json({"accepted": accepted}, status)
+                mode = payload.get("mode")
+                if mode not in (None, "scheduled-retry"):
+                    raise ValueError("Invalid run mode")
+                result = self.server.await_result(self.server.run_callback(
+                    stores,
+                    mode,
+                    payload.get("localDate"),
+                    payload.get("utcOffsetMinutes"),
+                ))
+                response = result if isinstance(result, dict) else {"accepted": bool(result)}
+                status = HTTPStatus.ACCEPTED if response.get("accepted") else (
+                    HTTPStatus.OK if response.get("reason") == "already-complete" else HTTPStatus.CONFLICT
+                )
+                self._json(response, status)
             elif path == "/api/config":
                 result = self.server.await_result(self.server.save_callback(payload.get("values")))
                 self._json(result)
@@ -189,7 +200,7 @@ def start_dashboard(
     setup_callback: Callable[[dict], Awaitable[dict]],
     update_callback: Callable[[], Awaitable[dict]],
     manual_actions_callback: Callable[[], Awaitable[dict]],
-    run_callback: Callable[[list[str] | None], Awaitable[bool]],
+    run_callback: Callable[..., Awaitable[bool | dict]],
 ) -> DashboardHTTPServer:
     """Start the dashboard server in a daemon thread."""
     server = DashboardHTTPServer(

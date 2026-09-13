@@ -14,7 +14,7 @@ let activeSettingsSection = 'section.stores';
 let setupStep = 0;
 let setupValues = {};
 let setupLoginMode = 'browser';
-let setupScheduleMode = 'startup';
+let setupScheduleMode = 'economy';
 let onboardingPreview = false;
 let onboardingPreviewLocale = null;
 let statusPollTimer = null;
@@ -92,6 +92,39 @@ function relativeTime(value) {
   return formatter.format(seconds, 'second');
 }
 
+function successfulStoresToday(status) {
+  const today = new Date().toDateString();
+  return new Set((status.history || [])
+    .filter(record => {
+      if (record.state !== 'success' || new Date(record.finishedAt).toDateString() !== today) return false;
+      const details = record.details;
+      if (!details || !details.kind) return true;
+      if (details.kind === 'coins') return ['collected', 'collected_manual', 'already_collected'].includes(details.outcome);
+      if (details.kind === 'games') return !(details.items || []).some(item => ['failed', 'action_required'].includes(item.outcome));
+      return true;
+    })
+    .map(record => record.store));
+}
+
+function nextHostRun(status) {
+  if (!status.schedule?.hostManaged || !status.schedule?.economyEnabled) return null;
+  const times = String(status.schedule.fixedTimes || '').split(',').map(value => value.trim()).filter(Boolean);
+  const now = new Date();
+  const candidates = [];
+  for (const dayOffset of [0, 1]) {
+    for (const value of times) {
+      const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
+      if (!match) continue;
+      const candidate = new Date(now);
+      candidate.setDate(now.getDate() + dayOffset);
+      candidate.setHours(Number(match[1]), Number(match[2]), 0, 0);
+      if (candidate > now) candidates.push(candidate);
+    }
+  }
+  if (!candidates.length) return null;
+  return new Date(Math.min(...candidates.map(candidate => candidate.getTime()))).toISOString();
+}
+
 function createStoreIcon(store) {
   const icon = document.createElement('span');
   icon.className = `store-icon store-${store.key}`;
@@ -156,7 +189,7 @@ function createStoreDetails(details) {
   return null;
 }
 
-function createStoreRow(store, globalRunning) {
+function createStoreRow(store, globalRunning, retryPending = false) {
   const row = document.createElement('article');
   row.className = 'store-row';
   row.dataset.state = store.state;
@@ -178,6 +211,12 @@ function createStoreRow(store, globalRunning) {
   const message = document.createElement('span');
   message.textContent = t(store.messageKey || 'status.waiting');
   state.append(marker, message);
+  if (retryPending) {
+    const retry = document.createElement('small');
+    retry.className = 'retry-pending';
+    retry.textContent = t('hostSchedule.retryPending');
+    state.append(retry);
+  }
   const lastRun = document.createElement('div');
   lastRun.className = 'last-run';
   const lastRunLabel = document.createElement('span');
@@ -268,10 +307,15 @@ function renderHistory(status) {
 function renderStatus(status) {
   latestStatus = status;
   const enabledStores = status.stores.filter(store => store.enabled);
-  storeGrid.replaceChildren(...enabledStores.map(store => createStoreRow(store, status.running)), createAddStoreRow(status.stores.length - enabledStores.length));
+  const completed = successfulStoresToday(status);
+  const scheduled = status.schedule?.hostManaged && status.schedule?.economyEnabled;
+  storeGrid.replaceChildren(...enabledStores.map(store => createStoreRow(store, status.running, scheduled && !completed.has(store.key))), createAddStoreRow(status.stores.length - enabledStores.length));
   document.querySelector('#activeStoreCount').textContent = String(enabledStores.length);
-  document.querySelector('#lastRun').textContent = relativeTime(status.finishedAt);
-  document.querySelector('#nextRun').textContent = status.schedule.nextRun ? relativeTime(status.schedule.nextRun) : t('dashboard.manualOnly');
+  document.querySelector('#lastRun').textContent = relativeTime(status.schedule?.lastAutomaticRun || status.finishedAt);
+  const pendingCount = enabledStores.filter(store => !completed.has(store.key)).length;
+  document.querySelector('#pendingStoreCount').textContent = scheduled ? String(pendingCount) : '—';
+  const nextRun = status.schedule?.nextRun || nextHostRun(status);
+  document.querySelector('#nextRun').textContent = scheduled && pendingCount === 0 ? t('hostSchedule.completedToday') : (nextRun ? relativeTime(nextRun) : t('dashboard.manualOnly'));
   document.querySelector('#runLabel').textContent = t(status.running ? 'dashboard.running' : 'dashboard.ready');
   document.querySelector('#runPill').classList.toggle('running', status.running);
   document.querySelector('#runAllButton').disabled = status.running || enabledStores.length === 0;
@@ -552,9 +596,9 @@ async function saveSettings(event) {
 function setupSelectedStores() { return Array.isArray(setupValues.STORES) ? setupValues.STORES : []; }
 
 function inferSetupScheduleMode() {
-  if (!setupValues.RUN_ON_STARTUP && !setupValues.SCHEDULER_FIXED_TIMES && Number(setupValues.SCHEDULER_HOURS) === 0) return 'manual';
-  if (!setupValues.RUN_ON_STARTUP) return 'daily';
-  return 'startup';
+  if (setupValues.WINDOWS_ECONOMY_SCHEDULE) return 'economy';
+  if (setupValues.RUN_ON_STARTUP) return 'dashboard';
+  return 'manual';
 }
 
 function openOnboardingPreview() {
@@ -589,8 +633,8 @@ function captureSetupStep() {
   const scheduleMode = form.querySelector('input[name="setup-schedule-mode"]:checked');
   if (scheduleMode) {
     setupScheduleMode = scheduleMode.value;
-    const dailyTime = form.querySelector('#setup-daily-time')?.value || '12:00';
-    Object.assign(setupValues, setupScheduleValues(setupScheduleMode, dailyTime));
+    const dailyTimes = form.querySelector('#setup-daily-times')?.value || '12:00,16:00,19:00';
+    Object.assign(setupValues, setupScheduleValues(setupScheduleMode, dailyTimes));
   }
 }
 
@@ -740,8 +784,8 @@ function setupSchedulePage() {
   const choices = document.createElement('div');
   choices.className = 'setup-choice-list';
   choices.append(
-    setupChoice('setup-schedule-mode', 'startup', 'onboarding.scheduleStartupTitle', 'onboarding.scheduleStartupCopy', setupScheduleMode === 'startup', 'onboarding.recommended'),
-    setupChoice('setup-schedule-mode', 'daily', 'onboarding.scheduleDailyTitle', 'onboarding.scheduleDailyCopy', setupScheduleMode === 'daily'),
+    setupChoice('setup-schedule-mode', 'economy', 'hostSchedule.economyTitle', 'hostSchedule.economyCopy', setupScheduleMode === 'economy', 'onboarding.recommended'),
+    setupChoice('setup-schedule-mode', 'dashboard', 'hostSchedule.dashboardTitle', 'hostSchedule.dashboardCopy', setupScheduleMode === 'dashboard'),
     setupChoice('setup-schedule-mode', 'manual', 'onboarding.scheduleManualTitle', 'onboarding.scheduleManualCopy', setupScheduleMode === 'manual'),
   );
   const timeField = document.createElement('label');
@@ -749,16 +793,17 @@ function setupSchedulePage() {
   const timeLabel = document.createElement('span');
   timeLabel.textContent = t('onboarding.dailyTime');
   const time = document.createElement('input');
-  time.type = 'time';
-  time.id = 'setup-daily-time';
-  time.value = String(setupValues.SCHEDULER_FIXED_TIMES || '12:00').split(',')[0];
+  time.type = 'text';
+  time.id = 'setup-daily-times';
+  time.placeholder = '12:00,16:00,19:00';
+  time.value = String(setupValues.SCHEDULER_FIXED_TIMES || '12:00,16:00,19:00');
   timeField.append(timeLabel, time);
   const timezone = document.createElement('p');
   timezone.className = 'setup-timezone';
   timezone.textContent = t('onboarding.timezone', {timezone: setupValues.SCHEDULER_TIMEZONE});
   const syncTimeState = () => {
     const selected = choices.querySelector('input[name="setup-schedule-mode"]:checked')?.value;
-    time.disabled = selected === 'manual';
+    time.disabled = selected !== 'economy';
     timeField.classList.toggle('disabled', time.disabled);
   };
   for (const input of choices.querySelectorAll('input')) input.addEventListener('change', syncTimeState);
@@ -778,7 +823,7 @@ function setupReviewPage() {
     [t('onboarding.selectedStores'), selected.map(key => latestStatus.stores.find(store => store.key === key)?.name || key).join(', ')],
     [t('onboarding.loginMethod'), t(setupLoginMode === 'browser' ? 'onboarding.browserLoginTitle' : 'onboarding.credentialsLoginTitle')],
     [t('onboarding.credentialsConfigured'), setupLoginMode === 'browser' ? t('onboarding.noneStoredNow') : String(entered)],
-    [t('onboarding.automation'), t(`onboarding.schedule${setupScheduleMode[0].toUpperCase()}${setupScheduleMode.slice(1)}Title`)],
+    [t('onboarding.automation'), t(setupScheduleMode === 'manual' ? 'onboarding.scheduleManualTitle' : `hostSchedule.${setupScheduleMode}Title`)],
     [t('security.title'), t('onboarding.localOnly')],
     [t('onboarding.nextStep'), t(setupLoginMode === 'browser' ? 'onboarding.nextManualLogin' : 'onboarding.nextRun')],
   ];

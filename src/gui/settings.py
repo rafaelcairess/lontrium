@@ -78,6 +78,8 @@ SPECS = (
     _setting("SCHEDULER_FIXED_TIMES", "scheduler_fixed_times", "schedule", help_key="help.fixedTimes"),
     _setting("SCHEDULER_TIMEZONE", "scheduler_timezone", "schedule", help_key="help.timezone"),
     _setting("RUN_ON_STARTUP", "run_on_startup", "schedule", "boolean"),
+    _setting("WINDOWS_ECONOMY_SCHEDULE", "windows_economy_schedule", "schedule", "boolean"),
+    _setting("WINDOWS_WAKE_ON_AC", "windows_wake_on_ac", "schedule", "boolean"),
     _setting("SHOW", "show", "browser", "boolean"),
     _setting("VNC_LOGIN_TIMEOUT", "vnc_login_timeout", "browser", "integer", minimum=30, maximum=3600),
     _setting("NOTIFY_SUMMARY", "notify_summary", "notifications", "boolean"),

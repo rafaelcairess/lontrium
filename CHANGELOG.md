@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.0] - 2026-09-13
+
+### Added
+- Native per-user Windows scheduling at sign-in and at configurable daily times, with `StartWhenAvailable`, duplicate-run prevention and optional AC wake support.
+- A `scheduled-retry` local API flow that uses the Windows local date/UTC offset and returns a stable run identifier.
+- Dashboard indicators for today's pending stores, the next native run and the latest automatic collection.
+
+### Changed
+- Windows economy mode starts Docker and Lontrium only for scheduled work, retries only stores without a successful result that day, and releases resources afterward when it started them.
+- Packaged Windows installs delegate automatic runs to Task Scheduler; source and Linux installations keep the existing in-container scheduler.
+- The setup assistant now offers automatic economy mode, persistent dashboard mode and manual-only mode.
+
+### Security
+- The scheduled endpoint validates the host date and UTC offset, selects stores through the existing allow-list and never exposes credentials.
+- The launcher stops only Lontrium-owned resources and never terminates unrelated containers or WSL distributions.
+
 ## [1.3.0] - 2026-09-11
 
 ### Added
