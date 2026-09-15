@@ -606,7 +606,6 @@ async def main() -> None:
 
     if cfg.reset_db_games:
         try:
-            from datetime import datetime, timedelta, timezone
             from src.core.database import async_session, ClaimedGame
             from sqlalchemy import delete
             
@@ -815,6 +814,13 @@ async def main() -> None:
                 }
             return True
 
+        async def dashboard_stop():
+            async def _stop_later():
+                await asyncio.sleep(0.5)
+                os._exit(0)
+            asyncio.create_task(_stop_later())
+            return {"accepted": True, "message": "Stopping..."}
+
         dashboard_server = start_dashboard(
             loop=asyncio.get_running_loop(),
             port=cfg.gui_port,
@@ -825,6 +831,7 @@ async def main() -> None:
             update_callback=dashboard_update,
             manual_actions_callback=dashboard_manual_actions,
             run_callback=dashboard_run,
+            stop_callback=dashboard_stop,
         )
     interval_text = (
         f"runs every {cfg.scheduler_hours} hours"

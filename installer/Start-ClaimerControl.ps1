@@ -1,6 +1,6 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
-    [ValidateSet("start", "economy", "scheduled", "sync-schedule", "configure-economy", "configure-dashboard", "configure-manual", "source", "update", "uninstall", "check")]
+    [ValidateSet("start", "stop", "economy", "scheduled", "sync-schedule", "configure-economy", "configure-dashboard", "configure-manual", "source", "update", "uninstall", "check")]
     [string]$Action = "start",
     [ValidateSet("auto", "en", "pt-BR", "es")]
     [string]$Language = "auto",
@@ -579,6 +579,18 @@ function Start-ScheduledApplication(
     [bool]$DockerWasRunning,
     [bool]$AppWasRunning
 ) {
+    # SMART WAKE CHECK
+    $smartWakeFile = Join-Path $PSScriptRoot "state\smart_wake.txt"
+    $nowStr = (Get-Date).ToString("yyyy-MM-dd", [Globalization.CultureInfo]::InvariantCulture)
+    if (Test-Path -LiteralPath $smartWakeFile) {
+        $wakeDate = (Get-Content -LiteralPath $smartWakeFile -Raw).Trim()
+        if ($wakeDate -eq $nowStr) {
+            Write-Host $Script:Text.ScheduleComplete -ForegroundColor Green
+            # Docker didn't even start, simply exit to save resources
+            return
+        }
+    }
+
     Adopt-LegacyData
     Write-Step $Script:Text.Starting
     Invoke-Compose @("up", "-d", "app")
@@ -594,11 +606,28 @@ function Start-ScheduledApplication(
     $run = Invoke-ScheduledDashboardRun
     if (-not $run.accepted -and $run.reason -eq "already-complete") {
         Write-Host $Script:Text.ScheduleComplete -ForegroundColor Green
+        
+        # SMART WAKE STATE UPDATE (first run after completion)
+        if (-not (Test-Path -LiteralPath "$PSScriptRoot\state")) {
+            New-Item -ItemType Directory -Path "$PSScriptRoot\state" | Out-Null
+        }
+        $nowStr | Out-File -FilePath $smartWakeFile -Encoding ascii -Force
+        
         Stop-DockerAfterEconomyRun -StopApp (-not $AppWasRunning) -StopDocker (-not $DockerWasRunning) -StopNotifier (-not $AppWasRunning)
         return
     }
     if (-not $run.accepted) { throw "The scheduled run was not accepted: $($run.reason)" }
     if (Wait-ScheduledRun ([string]$run.runId)) {
+        # Check if the run we just finished completed all pending stores
+        $postRunCheck = Invoke-ScheduledDashboardRun
+        if (-not $postRunCheck.accepted -and $postRunCheck.reason -eq "already-complete") {
+            # SMART WAKE STATE UPDATE (successful run)
+            if (-not (Test-Path -LiteralPath "$PSScriptRoot\state")) {
+                New-Item -ItemType Directory -Path "$PSScriptRoot\state" | Out-Null
+            }
+            $nowStr | Out-File -FilePath $smartWakeFile -Encoding ascii -Force
+        }
+        
         Stop-DockerAfterEconomyRun -StopApp (-not $AppWasRunning) -StopDocker (-not $DockerWasRunning) -StopNotifier (-not $AppWasRunning)
     }
 }
@@ -631,7 +660,7 @@ function Update-Application {
 }
 
 function Invoke-ClaimerControl(
-    [ValidateSet("start", "economy", "scheduled", "sync-schedule", "configure-economy", "configure-dashboard", "configure-manual", "source", "update", "uninstall", "check")]
+    [ValidateSet("start", "stop", "economy", "scheduled", "sync-schedule", "configure-economy", "configure-dashboard", "configure-manual", "source", "update", "uninstall", "check")]
     [string]$RequestedAction = $Action
 ) {
     try {
@@ -673,6 +702,14 @@ function Invoke-ClaimerControl(
             return 0
         }
         if ($RequestedAction -eq "sync-schedule") { Sync-WindowsSchedule; return 0 }
+        if ($RequestedAction -eq "stop") {
+            if (-not (Test-DockerCommandAvailable) -or -not (Test-DockerReady)) {
+                Stop-WindowsNotifier
+                return 0
+            }
+            Stop-DockerAfterEconomyRun
+            return 0
+        }
         if ($RequestedAction -eq "uninstall") {
             Remove-WindowsSchedule
             Stop-WindowsNotifier
