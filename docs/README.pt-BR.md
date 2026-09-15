@@ -135,6 +135,7 @@ O login pelo navegador é a opção recomendada, então o assistente não pede s
 
 - Abra o **Lontrium Control** pelo menu Iniciar ou pelo atalho da área de trabalho.
 - Use **Executar agora** para todas as lojas ou execute somente uma delas.
+- Use **Parar tudo** se uma loja travar. O Lontrium cancela a fila e, no Windows, fecha o Docker quando nenhum container de outro aplicativo estiver em execução.
 - Use **Navegador** quando uma loja solicitar login, CAPTCHA ou confirmação manual.
 - Ative **Notificações do Windows para ações manuais** para receber um único alerta local por CAPTCHA detectado. O auxiliar lê somente um evento sem segredos em `127.0.0.1`.
 - Use **Configurações** para alterar lojas, contas, notificações e agendamento.

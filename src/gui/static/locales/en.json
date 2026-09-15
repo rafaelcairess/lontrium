@@ -4,12 +4,12 @@
   "nav": {"browser": "Browser", "settings": "Settings", "language": "Language"},
   "dashboard": {
     "automation": "Automation", "automationCopy": "Run enabled stores or follow the next scheduled cycle.",
-    "nextRun": "Next run", "lastRun": "Last run", "activeStores": "Active stores", "runNow": "Run now",
+    "nextRun": "Next run", "lastRun": "Last run", "activeStores": "Active stores", "runNow": "Run now", "stopAll": "Stop all",
     "storesTitle": "Active stores", "storesCopy": "Only selected stores participate in automatic runs.", "refresh": "Refresh",
     "securityLabel": "Privacy and local execution", "lastExecution": "Last run", "sessionNever": "No saved runs yet",
-    "manualOnly": "Manual only", "ready": "Ready", "running": "Running"
+    "manualOnly": "Manual only", "ready": "Ready", "running": "Running", "stopConfirm": "Cancel every current and queued store, close Lontrium and, on Windows, stop Docker when no other containers are using it?", "stopRequested": "Stopping all Lontrium activity…"
   },
-  "history": {"title": "Recent activity", "copy": "Saved locally for 90 days, without account data or raw logs.", "empty": "Completed runs will appear here."},
+  "history": {"title": "Recent activity", "copy": "Saved locally for 90 days, without account data or raw logs.", "empty": "Completed runs will appear here.", "seeMore": "See more ({count})"},
   "security": {
     "title": "Your data stays on this computer",
     "summary": "The dashboard, settings and browser sessions run locally. Lontrium Control and Rafael Caires do not operate a server that receives your credentials.",
@@ -24,7 +24,7 @@
   },
   "storeAuth": {"shopee": "Manual login: use Continue with Google (direct login is blocked by Shopee security)."},
   "status": {
-    "waiting": "Waiting for a run", "queued": "Queued", "runningNow": "Running now", "failed": "Last run failed",
+    "waiting": "Waiting for a run", "queued": "Queued", "runningNow": "Running now", "failed": "Last run failed", "cancelled": "Cancelled by user",
     "completedNoChanges": "Completed with no changes", "noActiveGiveaways": "No active Free-to-Keep promotions", "resultGames": "Run details", "resultCoins": "Coin check-in details",
     "claimed": "Claimed", "owned": "Already in library", "available": "Available", "failedItem": "Failed", "skipped": "Skipped",
     "actionRequired": "Action required", "processed": "Checked", "run": "Run", "runningButton": "Running"

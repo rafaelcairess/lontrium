@@ -3,6 +3,7 @@
 import asyncio
 import json
 from datetime import date
+from http.client import HTTPConnection
 from pathlib import Path
 from threading import Thread
 from urllib.error import HTTPError
@@ -259,6 +260,44 @@ def test_finishing_independent_store_keeps_overlapping_run_active():
     assert state.snapshot(["epic", "gog", "shopee"])["running"] is False
 
 
+def test_cancel_run_clears_active_stores_and_keeps_them_retryable():
+    state = DashboardState()
+    run_id = state.begin_run(["aliexpress", "shopee"])
+    state.begin_store("aliexpress")
+
+    records = state.cancel_run()
+    payload = state.snapshot(["aliexpress", "shopee"])
+
+    assert payload["running"] is False
+    assert {record["store"] for record in records} == {"aliexpress", "shopee"}
+    assert all(record["runId"] == run_id for record in records)
+    assert all(record["state"] == "error" for record in records)
+    assert all(record["messageKey"] == "status.cancelled" for record in records)
+    assert state.pending_stores_for_day(["aliexpress", "shopee"], date.today(), 0) == [
+        "aliexpress", "shopee"
+    ]
+
+
+def test_cancel_run_while_idle_does_not_create_a_fake_last_run():
+    state = DashboardState()
+
+    assert state.cancel_run() == []
+    payload = state.snapshot(["epic"])
+
+    assert payload["running"] is False
+    assert payload["finishedAt"] is None
+
+
+def test_stop_event_is_available_when_optional_windows_notifications_are_disabled():
+    state = DashboardState()
+    assert state.request_manual_action("stop_all", "system")
+    assert state.request_manual_action("stop_all", "epic") is None
+    payload = state.manual_actions(enabled=False)
+    assert payload["enabled"] is False
+    assert payload["events"][0]["kind"] == "stop_all"
+    assert payload["events"][0]["store"] == "system"
+
+
 def test_game_result_summary_keeps_titles_but_removes_codes_accounts_and_urls():
     message, details = summarize_store_result(
         "prime",
@@ -342,6 +381,12 @@ def test_dashboard_http_api_and_csrf():
             return {"accepted": True, "runId": "a" * 32, "stores": ["epic"]}
         return True
 
+    stop_calls = []
+
+    async def stop():
+        stop_calls.append(True)
+        return {"accepted": True, "cancelledTasks": 1, "hostShutdownRequested": True}
+
     server = start_dashboard(
         loop=loop,
         port=0,
@@ -352,6 +397,7 @@ def test_dashboard_http_api_and_csrf():
         update_callback=update,
         manual_actions_callback=manual_actions,
         run_callback=run,
+        stop_callback=stop,
     )
     base = f"http://127.0.0.1:{server.server_address[1]}"
     try:
@@ -396,6 +442,20 @@ def test_dashboard_http_api_and_csrf():
             urlopen(denied, timeout=3)
         assert error.value.code == 403
 
+        # A rejected request leaves its body unread. The server must close that
+        # HTTP/1.1 connection so those bytes cannot corrupt the next method.
+        connection = HTTPConnection("127.0.0.1", server.server_address[1], timeout=3)
+        connection.request("POST", "/api/stop", body="{}", headers={"Content-Type": "application/json"})
+        rejected = connection.getresponse()
+        assert rejected.status == 403
+        rejected.read()
+        connection.request(
+            "POST", "/api/stop", body="{}",
+            headers={"Content-Type": "application/json", "X-FGC-Token": server.csrf_token},
+        )
+        assert connection.getresponse().status == 202
+        connection.close()
+
         allowed = Request(
             f"{base}/api/run",
             data=b"{}",
@@ -405,6 +465,21 @@ def test_dashboard_http_api_and_csrf():
         with urlopen(allowed, timeout=3) as response:
             assert response.status == 202
             assert json.load(response)["accepted"] is True
+
+        stop_request = Request(
+            f"{base}/api/stop",
+            data=b"{}",
+            headers={"Content-Type": "application/json", "X-FGC-Token": server.csrf_token},
+            method="POST",
+        )
+        with urlopen(stop_request, timeout=3) as response:
+            assert response.status == 202
+            assert json.load(response) == {
+                "accepted": True,
+                "cancelledTasks": 1,
+                "hostShutdownRequested": True,
+            }
+        assert stop_calls == [True, True]
 
         scheduled = Request(
             f"{base}/api/run",
@@ -475,6 +550,8 @@ def test_frontend_is_local_and_contains_store_controls():
     assert "data-i18n=\"security.title\"" in html
     assert "onboardingForm" in html
     assert "/api/run" in script
+    assert "/api/stop" in script
+    assert 'id="stopAllButton"' in html
     assert "/api/config" in script
     assert "/api/setup" in script
     assert "/api/update" in script

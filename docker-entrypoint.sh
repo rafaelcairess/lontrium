@@ -6,7 +6,6 @@
 # Exit immediately if any command fails
 set -eo pipefail
 
-
 # Browser profile directory (can be customized via BROWSER_DIR env var)
 BROWSER="${BROWSER_DIR:-data/browser}"
 case "$BROWSER" in

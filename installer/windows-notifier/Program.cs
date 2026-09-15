@@ -46,11 +46,17 @@ namespace Lontrium.Notifier
                 if (response != null)
                 {
                     unavailableSince = DateTime.UtcNow;
-                    if (response.enabled && response.events != null)
+                    if (response.events != null)
                     {
                         foreach (ManualEvent item in response.events)
                         {
-                            if (!IsAllowed(item) || seen.Contains(item.id)) continue;
+                            if (!IsAllowed(item, response.enabled) || seen.Contains(item.id)) continue;
+                            if (item.kind == "stop_all")
+                            {
+                                Remember(seen, item.id);
+                                StartStopAll();
+                                return;
+                            }
                             if (Show(item.store)) Remember(seen, item.id);
                         }
                     }
@@ -118,6 +124,25 @@ namespace Lontrium.Notifier
             catch { }
         }
 
+        private static void StartStopAll()
+        {
+            try
+            {
+                string launcher = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Start-ClaimerControl.ps1");
+                if (!File.Exists(launcher)) return;
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = "-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"" + launcher + "\" -Action stop -Language auto",
+                    WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                });
+            }
+            catch { }
+        }
+
         private static EventResponse Fetch()
         {
             try
@@ -141,12 +166,13 @@ namespace Lontrium.Notifier
             }
         }
 
-        private static bool IsAllowed(ManualEvent item)
+        private static bool IsAllowed(ManualEvent item, bool notificationsEnabled)
         {
-            return item != null
+            if (item == null || !Guid.TryParseExact(item.id, "N", out _)) return false;
+            if (item.kind == "stop_all") return item.store == "system";
+            return notificationsEnabled
                 && item.kind == "captcha"
-                && AllowedStores.Contains(item.store ?? "")
-                && Guid.TryParseExact(item.id, "N", out _);
+                && AllowedStores.Contains(item.store ?? "");
         }
 
         private static bool Show(string store)

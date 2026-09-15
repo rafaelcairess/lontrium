@@ -127,6 +127,8 @@ h1, h2, h3, .brand-name, .store-name {
 .button.quiet:hover { color: var(--text-soft); background: var(--accent-soft); }
 .button.primary { color: var(--view); background: var(--accent); border-color: var(--accent); }
 .button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.button.danger { color: var(--view); background: var(--danger); border-color: var(--danger); }
+.button.danger:hover { background: #ff9191; border-color: #ff9191; }
 .button:disabled { color: var(--muted); background: var(--window-muted); border-color: var(--line); opacity: .62; cursor: not-allowed; }
 
 .workspace { width: min(1140px, calc(100% - 40px)); margin: 0 auto; padding: 40px 0 72px; }
@@ -163,7 +165,8 @@ h1, h2, h3, .brand-name, .store-name {
 .run-summary div { min-width: 130px; padding: 1px 20px; border-left: 1px solid var(--line); }
 .run-summary dt { color: var(--muted); font-size: 11px; margin-bottom: 6px; }
 .run-summary dd { margin: 0; color: var(--text); font-size: 14px; font-weight: 650; white-space: nowrap; }
-.run-all { min-width: 125px; }
+.run-actions { display: flex; flex-direction: column; gap: 8px; justify-content: center; min-width: 125px; }
+.run-actions .button { width: 100%; }
 
 .local-security {
   display: grid;
@@ -519,6 +522,14 @@ h1, h2, h3, .brand-name, .store-name {
 .setup-review dt { color: var(--muted); font-size: 10px; }
 .setup-review dd { margin: 0; color: var(--text); font-size: 11px; line-height: 1.5; }
 
+.see-more-history { margin-top: 10px; width: 100%; justify-content: center; }
+.schedule-times-field { display: flex; flex-direction: column; gap: 8px; }
+.schedule-times-list { display: flex; flex-direction: column; gap: 8px; }
+.schedule-time-row { display: flex; gap: 8px; align-items: center; }
+.schedule-time-row input[type="time"] { flex: 1; min-height: 42px; padding: 0 12px; color: var(--text); color-scheme: dark; background: var(--view); border: 1px solid var(--line); border-radius: 8px; }
+.remove-time-btn { flex: 0 0 auto; width: 42px; height: 42px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.add-time-btn { align-self: flex-start; margin-top: 4px; padding: 0 16px; height: 36px; border-radius: 8px; font-weight: 500; }
+
 @media (max-width: 900px) {
   .run-panel { grid-template-columns: 1fr auto; }
   .run-summary { grid-column: 1 / -1; grid-row: 2; order: 3; }
@@ -542,7 +553,6 @@ h1, h2, h3, .brand-name, .store-name {
   .run-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .run-summary div { min-width: 0; padding: 0; border: 0; }
   .run-summary div:last-child { display: none; }
-  .run-all { width: 100%; }
   .local-security { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
   .security-scope { grid-column: 2; max-width: none; padding: 6px 0 0; border-top: 1px solid var(--line); border-left: 0; }
   .section-header { align-items: flex-start; }

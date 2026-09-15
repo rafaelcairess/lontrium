@@ -43,7 +43,10 @@
         <div><dt data-i18n="dashboard.activeStores">Active stores</dt><dd id="activeStoreCount">—</dd></div>
         <div><dt data-i18n="hostSchedule.pendingStores">Pending today</dt><dd id="pendingStoreCount">—</dd></div>
       </dl>
-      <button class="button primary run-all" id="runAllButton" type="button" data-i18n="dashboard.runNow">Run now</button>
+      <div class="run-actions">
+        <button class="button primary run-all" id="runAllButton" type="button" data-i18n="dashboard.runNow">Run now</button>
+        <button class="button danger stop-all" id="stopAllButton" type="button" data-i18n="dashboard.stopAll">Stop all</button>
+      </div>
     </section>
 
     <aside class="local-security" data-i18n-aria-label="dashboard.securityLabel">

@@ -177,7 +177,10 @@ class DashboardState:
 
     def request_manual_action(self, kind: str, store: str) -> str | None:
         """Publish a deduplicated, secret-free action for the local Windows helper."""
-        if kind != "captcha" or store not in STORE_META:
+        valid = (kind == "captcha" and store in STORE_META) or (
+            kind == "stop_all" and store == "system"
+        )
+        if not valid:
             return None
         with self._lock:
             for event_id, event in self._manual_actions.items():
@@ -199,9 +202,12 @@ class DashboardState:
             self._manual_actions.pop(event_id, None)
 
     def manual_actions(self, enabled: bool) -> dict:
-        """Return only allow-listed local notification data; never page or account data."""
+        """Return allow-listed local helper events; CAPTCHA notices remain optional."""
         with self._lock:
-            events = deepcopy(list(self._manual_actions.values())) if enabled else []
+            events = deepcopy([
+                event for event in self._manual_actions.values()
+                if enabled or event["kind"] == "stop_all"
+            ])
         return {"enabled": bool(enabled), "events": events}
 
     def begin_run(self, store_keys: list[str]) -> str:
@@ -302,6 +308,43 @@ class DashboardState:
             )
             if not self._running:
                 self._finished_at = _now()
+
+    def cancel_run(self) -> list[dict]:
+        """Mark every queued/running store as cancelled and make the UI idle."""
+        with self._lock:
+            was_running = self._running
+            finished_at = _now()
+            records = []
+            for key, store in self._stores.items():
+                if store["state"] not in {"queued", "running"}:
+                    continue
+                run_id, started_at = self._store_runs.pop(
+                    key, (self._run_id or uuid4().hex, self._started_at or finished_at)
+                )
+                store.update(
+                    state="error",
+                    message="Cancelado pelo usuário",
+                    messageKey="status.cancelled",
+                    lastRun=finished_at,
+                    details=None,
+                )
+                record = {
+                    "runId": run_id,
+                    "store": key,
+                    "state": "error",
+                    "message": "Cancelado pelo usuário",
+                    "messageKey": "status.cancelled",
+                    "startedAt": started_at,
+                    "finishedAt": finished_at,
+                    "details": None,
+                }
+                records.append(record)
+                self._history.insert(0, deepcopy(record))
+            del self._history[250:]
+            self._running = False
+            if records or was_running:
+                self._finished_at = finished_at
+            return records
 
     def restore(self, records: list[dict]) -> None:
         """Restore recent safe results loaded from the persistent database."""

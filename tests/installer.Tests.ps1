@@ -311,3 +311,33 @@ Describe "Economy mode" {
         Assert-MockCalled Get-RunningContainerIds -Times 1 -Exactly -Scope It
     }
 }
+
+Describe "Stop all action" {
+    BeforeAll {
+        . "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Action stop -Language en
+    }
+
+    It "does not start Docker when it is already unavailable" {
+        Mock Test-DockerCommandAvailable { $false }
+        Mock Test-DockerReady { throw "must not be called" }
+        Mock Stop-WindowsNotifier {}
+        Mock Stop-DockerAfterEconomyRun {}
+
+        $result = Invoke-ClaimerControl -RequestedAction stop
+
+        if ($result -ne 0) { throw "Stop should be idempotent" }
+        Assert-MockCalled Stop-WindowsNotifier -Times 1 -Exactly -Scope It
+        Assert-MockCalled Stop-DockerAfterEconomyRun -Times 0 -Exactly -Scope It
+    }
+
+    It "stops Lontrium and Docker through the guarded economy cleanup" {
+        Mock Test-DockerCommandAvailable { $true }
+        Mock Test-DockerReady { $true }
+        Mock Stop-DockerAfterEconomyRun {}
+
+        $result = Invoke-ClaimerControl -RequestedAction stop
+
+        if ($result -ne 0) { throw "Stop should succeed" }
+        Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It
+    }
+}

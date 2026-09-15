@@ -132,6 +132,9 @@ async def main() -> None:
     async def run(_stores: list[str] | None) -> bool:
         return True
 
+    async def stop() -> dict:
+        return {"accepted": True, "cancelledTasks": 0, "hostShutdownRequested": False}
+
     server = start_dashboard(
         loop=asyncio.get_running_loop(),
         port=8765,
@@ -142,6 +145,7 @@ async def main() -> None:
         update_callback=update,
         manual_actions_callback=manual_actions,
         run_callback=run,
+        stop_callback=stop,
     )
     try:
         await asyncio.Event().wait()

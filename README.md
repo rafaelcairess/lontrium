@@ -146,6 +146,7 @@ Browser login is the recommended default, so the assistant does not request pass
 
 - Open **Lontrium Control** from the Start menu or desktop shortcut.
 - Use **Run now** for all enabled stores or run one store individually.
+- Use **Stop all** if a store becomes stuck. Lontrium cancels the current queue and, on Windows, closes Docker when no unrelated container is running.
 - Use **Browser** when a store asks for login, CAPTCHA or manual confirmation.
 - Enable **Windows notifications for manual actions** to receive one local alert per detected CAPTCHA. The helper reads only a secret-free event from `127.0.0.1`; it does not send account data anywhere.
 - Use **Settings** to change stores, accounts, notifications or scheduling.

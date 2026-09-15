@@ -135,6 +135,7 @@ El inicio de sesión en el navegador es la opción recomendada, por lo que el as
 
 - Abre **Lontrium Control** desde el menú Inicio o el acceso directo del escritorio.
 - Usa **Ejecutar ahora** para todas las tiendas o ejecuta una tienda individualmente.
+- Usa **Detener todo** si una tienda se bloquea. Lontrium cancela la cola y, en Windows, cierra Docker cuando ningún contenedor de otra aplicación está en ejecución.
 - Usa **Navegador** cuando una tienda solicite acceso, CAPTCHA o confirmación manual.
 - Activa **Notificaciones de Windows para acciones manuales** para recibir una sola alerta local por cada CAPTCHA detectado. El auxiliar solo lee un evento sin secretos desde `127.0.0.1`.
 - Usa **Configuración** para cambiar tiendas, cuentas, notificaciones y horarios.

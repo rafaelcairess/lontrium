@@ -32,6 +32,7 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         update_callback: Callable[[], Awaitable[dict]],
         manual_actions_callback: Callable[[], Awaitable[dict]],
         run_callback: Callable[..., Awaitable[bool | dict]],
+        stop_callback: Callable[[], Awaitable[dict]],
     ) -> None:
         super().__init__(address, DashboardHandler)
         self.loop = loop
@@ -42,6 +43,7 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         self.update_callback = update_callback
         self.manual_actions_callback = manual_actions_callback
         self.run_callback = run_callback
+        self.stop_callback = stop_callback
         self.csrf_token = secrets.token_urlsafe(32)
 
     def await_result(self, awaitable: Awaitable[dict] | Awaitable[bool]):
@@ -63,6 +65,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
+        if self.close_connection:
+            self.send_header("Connection", "close")
         self.send_header(
             "Content-Security-Policy",
             "default-src 'self'; style-src 'self'; script-src 'self'; font-src 'self'",
@@ -150,6 +154,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         path = urlparse(self.path).path
         if not self._csrf_ok():
+            # The body has deliberately not been parsed yet. Close this HTTP/1.1
+            # connection so unread bytes cannot prefix the next request.
+            self.close_connection = True
             self._json({"error": "Sessão inválida; atualize a página"}, HTTPStatus.FORBIDDEN)
             return
         try:
@@ -178,6 +185,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             elif path == "/api/setup":
                 result = self.server.await_result(self.server.setup_callback(payload.get("values")))
                 self._json(result)
+            elif path == "/api/stop":
+                self._json(self.server.await_result(self.server.stop_callback()), HTTPStatus.ACCEPTED)
             else:
                 self._json({"error": "Não encontrado"}, HTTPStatus.NOT_FOUND)
         except ValueError as exc:
@@ -201,6 +210,7 @@ def start_dashboard(
     update_callback: Callable[[], Awaitable[dict]],
     manual_actions_callback: Callable[[], Awaitable[dict]],
     run_callback: Callable[..., Awaitable[bool | dict]],
+    stop_callback: Callable[[], Awaitable[dict]],
 ) -> DashboardHTTPServer:
     """Start the dashboard server in a daemon thread."""
     server = DashboardHTTPServer(
@@ -213,6 +223,7 @@ def start_dashboard(
         update_callback,
         manual_actions_callback,
         run_callback,
+        stop_callback,
     )
     Thread(target=server.serve_forever, name="fgc-dashboard", daemon=True).start()
     logger.info("🖥️ Local dashboard ready at http://localhost:%s", port)

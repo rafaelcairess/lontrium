@@ -18,6 +18,7 @@ let setupScheduleMode = 'economy';
 let onboardingPreview = false;
 let onboardingPreviewLocale = null;
 let statusPollTimer = null;
+let showAllHistory = false;
 
 function detectedLocale() {
   return detectLocale(
@@ -262,7 +263,9 @@ function createAddStoreRow(availableCount) {
 
 function renderHistory(status) {
   const container = document.querySelector('#historyList');
-  const records = Array.isArray(status.history) ? status.history.slice(0, 50) : [];
+  const allRecords = Array.isArray(status.history) ? status.history : [];
+  const limit = showAllHistory ? 50 : 5;
+  const records = allRecords.slice(0, limit);
   const stores = new Map(status.stores.map(store => [store.key, store]));
   if (!records.length) {
     const empty = document.createElement('p');
@@ -302,6 +305,16 @@ function renderHistory(status) {
     return card;
   });
   container.replaceChildren(...cards);
+  if (!showAllHistory && allRecords.length > 5) {
+    const seeMoreBtn = document.createElement('button');
+    seeMoreBtn.className = 'button secondary see-more-history';
+    seeMoreBtn.textContent = t('history.seeMore', {count: allRecords.length - 5});
+    seeMoreBtn.addEventListener('click', () => {
+      showAllHistory = true;
+      renderHistory(latestStatus);
+    });
+    container.append(seeMoreBtn);
+  }
 }
 
 function renderStatus(status) {
@@ -422,6 +435,55 @@ function createTooltip(key, id) {
   return group;
 }
 
+function renderTimeEditor(hiddenInput) {
+  const listContainer = document.createElement('div');
+  listContainer.className = 'schedule-times-list';
+  
+  const updateHiddenInput = () => {
+    const times = [...listContainer.querySelectorAll('input[type="time"]')]
+      .map(input => input.value)
+      .filter(Boolean)
+      .sort();
+    hiddenInput.value = times.join(',');
+  };
+
+  const addTimeRow = (val = '') => {
+    const row = document.createElement('div');
+    row.className = 'schedule-time-row';
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time';
+    timeInput.value = val;
+    timeInput.addEventListener('change', updateHiddenInput);
+    
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'button secondary remove-time-btn';
+    removeBtn.textContent = '−';
+    removeBtn.addEventListener('click', () => {
+      row.remove();
+      updateHiddenInput();
+    });
+    
+    row.append(timeInput, removeBtn);
+    listContainer.append(row);
+    updateHiddenInput();
+  };
+  
+  const initialValues = hiddenInput.value.split(',').map(v => v.trim()).filter(Boolean);
+  if (initialValues.length === 0) addTimeRow('12:00');
+  else for (const val of initialValues) addTimeRow(val);
+  
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'button secondary add-time-btn';
+  addBtn.textContent = '+';
+  addBtn.addEventListener('click', () => addTimeRow('12:00'));
+  
+  const fragment = document.createDocumentFragment();
+  fragment.append(listContainer, addBtn);
+  return {fragment, updateHiddenInput, listContainer, addBtn};
+}
+
 function createInput(spec, current, configured, prefix = '') {
   const wrapper = document.createElement('div');
   wrapper.className = spec.kind === 'boolean' ? 'check-row' : 'field';
@@ -436,6 +498,28 @@ function createInput(spec, current, configured, prefix = '') {
     wrapper.append(input, label);
     return wrapper;
   }
+  
+  if (spec.key === 'SCHEDULER_FIXED_TIMES') {
+    input.type = 'hidden';
+    input.value = current || '12:00,16:00,19:00';
+    const label = document.createElement('label');
+    const labelText = document.createElement('span');
+    labelText.textContent = t(spec.labelKey);
+    label.append(labelText);
+    if (spec.credentialPurposeKey) label.append(createTooltip(spec.credentialPurposeKey, `help-${prefix}${spec.key}`));
+    
+    const editor = renderTimeEditor(input);
+    wrapper.classList.add('schedule-times-field');
+    wrapper.append(label, input, editor.fragment);
+    
+    if (spec.helpKey) {
+      const help = document.createElement('small');
+      help.textContent = t(spec.helpKey);
+      wrapper.append(help);
+    }
+    return wrapper;
+  }
+
   input.type = spec.kind === 'integer' ? 'number' : (spec.secret ? 'password' : 'text');
   if (!spec.secret && current !== null && current !== undefined) input.value = current;
   if (spec.min !== null) input.min = spec.min;
@@ -788,23 +872,27 @@ function setupSchedulePage() {
     setupChoice('setup-schedule-mode', 'dashboard', 'hostSchedule.dashboardTitle', 'hostSchedule.dashboardCopy', setupScheduleMode === 'dashboard'),
     setupChoice('setup-schedule-mode', 'manual', 'onboarding.scheduleManualTitle', 'onboarding.scheduleManualCopy', setupScheduleMode === 'manual'),
   );
-  const timeField = document.createElement('label');
-  timeField.className = 'setup-time-field';
+  const timeField = document.createElement('div');
+  timeField.className = 'setup-time-field schedule-times-field';
   const timeLabel = document.createElement('span');
   timeLabel.textContent = t('onboarding.dailyTime');
   const time = document.createElement('input');
-  time.type = 'text';
+  time.type = 'hidden';
   time.id = 'setup-daily-times';
-  time.placeholder = '12:00,16:00,19:00';
   time.value = String(setupValues.SCHEDULER_FIXED_TIMES || '12:00,16:00,19:00');
-  timeField.append(timeLabel, time);
+  
+  const editor = renderTimeEditor(time);
+  timeField.append(timeLabel, time, editor.fragment);
+  
   const timezone = document.createElement('p');
   timezone.className = 'setup-timezone';
   timezone.textContent = t('onboarding.timezone', {timezone: setupValues.SCHEDULER_TIMEZONE});
   const syncTimeState = () => {
     const selected = choices.querySelector('input[name="setup-schedule-mode"]:checked')?.value;
-    time.disabled = selected !== 'economy';
-    timeField.classList.toggle('disabled', time.disabled);
+    const disabled = selected !== 'economy';
+    for (const el of editor.listContainer.querySelectorAll('input, button')) el.disabled = disabled;
+    editor.addBtn.disabled = disabled;
+    timeField.classList.toggle('disabled', disabled);
   };
   for (const input of choices.querySelectorAll('input')) input.addEventListener('change', syncTimeState);
   syncTimeState();

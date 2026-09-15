@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.0] - 2026-09-15
+
+### Added
+- A guarded **Stop all** dashboard action cancels active and queued stores, closes their automation browsers and asks the local Windows helper to release Lontrium's container and Docker resources.
+- **Smart Wake:** Windows Task Scheduler will now read `state/smart_wake.txt` and abort waking up Docker if the daily quota has been met, saving background resources.
+- `update-local.cmd` helper script added for 1-click local environment testing and updates.
+
+### Changed
+- **Economy Mode** is now enabled by default.
+- Ignore Docker Compose image pull failures during local installer startup.
+
+### Fixed
+- A store stuck in a long browser retry no longer leaves the dashboard without a manual escape route. Cancelled stores remain pending for a later scheduled retry.
+
+### Security
+- Host shutdown uses a fixed, allow-listed local event and launcher action. It accepts no command or URL from the browser and leaves Docker running when another container needs it.
+
 ## [1.4.0] - 2026-09-13
 
 ### Added
