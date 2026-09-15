@@ -357,7 +357,13 @@ function Invoke-Compose([string[]]$Arguments) {
     } else {
         & docker compose --project-name claimer-control --env-file $EnvironmentFile -f $ComposeFile @Arguments
     }
-    if ($LASTEXITCODE -ne 0) { throw "docker compose $($Arguments -join ' ') failed" }
+    if ($LASTEXITCODE -ne 0) {
+        if ($Arguments[0] -eq "pull") {
+            Write-Host " Warning: Could not pull the image (offline or local preview). Continuing..." -ForegroundColor Yellow
+        } else {
+            throw "docker compose $($Arguments -join ' ') failed"
+        }
+    }
 }
 
 function Wait-Panel {
