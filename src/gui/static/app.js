@@ -1016,9 +1016,21 @@ async function initialise() {
   checkUpdate();
 }
 
+async function stopAll() {
+  if (!window.confirm(t('dashboard.stopConfirm'))) return;
+  try {
+    await api('/api/stop', { method: 'POST' });
+    showToast(t('dashboard.stopRequested'));
+    await refreshStatus();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
 document.querySelector('#vncLink').href = `${location.protocol}//${location.hostname}:7080/?autoconnect=true`;
 document.querySelector('#languageSelect').addEventListener('change', event => setLocale(event.target.value));
 document.querySelector('#runAllButton').addEventListener('click', () => runStores());
+document.querySelector('#stopAllButton').addEventListener('click', stopAll);
 document.querySelector('#refreshButton').addEventListener('click', () => refreshStatus(false));
 document.querySelector('#settingsButton').addEventListener('click', openSettings);
 document.querySelector('#closeSettings').addEventListener('click', closeSettings);
