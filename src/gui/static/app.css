@@ -350,7 +350,7 @@ h1, h2, h3, .brand-name, .store-name {
 .settings-introduction h4 { margin: 0 0 8px; color: var(--text-soft); font-family: "Newsreader", Georgia, serif; font-size: 23px; font-weight: 600; }
 .settings-introduction p { margin: 0 0 16px; color: var(--muted); font-size: 11px; line-height: 1.7; }
 .settings-introduction .settings-introduction-note { padding: 13px 15px; color: var(--text); background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 7px; }
-.field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px; }
+.field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px; align-items: start; }
 .field { display: flex; flex-direction: column; gap: 7px; }
 .field label { color: var(--text-soft); font-size: 11px; font-weight: 650; }
 .field input[type="text"], .field input[type="password"], .field input[type="number"] { width: 100%; min-height: 42px; color: var(--text); background: var(--view); border: 1px solid var(--line-strong); border-radius: 9px; padding: 10px 12px; outline: none; }
@@ -523,9 +523,9 @@ h1, h2, h3, .brand-name, .store-name {
 .setup-review dd { margin: 0; color: var(--text); font-size: 11px; line-height: 1.5; }
 
 .see-more-history { margin-top: 10px; width: 100%; justify-content: center; }
-.schedule-times-field { display: flex; flex-direction: column; gap: 8px; }
-.schedule-times-list { display: flex; flex-direction: column; gap: 8px; }
-.schedule-time-row { display: flex; gap: 8px; align-items: center; }
+.schedule-times-field { display: flex; flex-direction: column; gap: 8px; grid-column: 1 / -1; }
+.schedule-times-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.schedule-time-row { display: flex; gap: 8px; align-items: center; flex: 0 0 160px; }
 .schedule-time-row input[type="time"] { flex: 1; min-height: 42px; padding: 0 12px; color: var(--text); color-scheme: dark; background: var(--view); border: 1px solid var(--line); border-radius: 8px; }
 .remove-time-btn { flex: 0 0 auto; width: 42px; height: 42px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; }
 .add-time-btn { align-self: flex-start; margin-top: 4px; padding: 0 16px; height: 36px; border-radius: 8px; font-weight: 500; }

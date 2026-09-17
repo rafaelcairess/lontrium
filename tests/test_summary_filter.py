@@ -16,7 +16,7 @@ GAMES = [
     {"title": "Owned", "url": "", "status": "existed"},
     {"title": "Checked in", "url": "", "status": "already claimed today ✨"},
     {"title": "F2P", "url": "", "status": "skipped:f2p"},
-    {"title": "Missing base", "url": "", "status": "failed:missing_base"},
+    {"title": "Missing base", "url": "", "status": "skipped:missing_base"},
     {"title": "Broken", "url": "", "status": "failed"},
     {"title": "Dry", "url": "", "status": "available (dry run)"},
     {"title": "Download once", "url": "", "status": "download only, nothing to claim 📥"},
@@ -57,13 +57,14 @@ def test_defaults_show_only_real_changes(summary_filter):
 
 def test_claim_fails_can_be_switched_on(summary_filter):
     titles = summary_filter(_Cfg(fails=True))
-    assert "Missing base" in titles and "Broken" in titles
+    assert "Broken" in titles
+    assert "Missing base" not in titles
     assert "Owned" not in titles
 
 
 def test_already_claimed_can_be_switched_on(summary_filter):
     titles = summary_filter(_Cfg(owned=True))
-    assert "Owned" in titles and "Checked in" in titles and "F2P" in titles
+    assert "Owned" in titles and "Checked in" in titles and "F2P" in titles and "Missing base" in titles
     assert "Broken" not in titles
 
 

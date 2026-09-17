@@ -1056,7 +1056,7 @@ class PrimeGamingClaimer(BaseClaimer):
                             }
                         }
                         
-                        const match1 = allText.match(/redeem your (?:product )?code on\s+([^.\n]+)/i);
+                        const match1 = allText.match(/redeem your (?:product )?code on\\s+([^.\\n]+)/i);
                         if (match1 && match1[1]) return match1[1].trim();
                         
                         return 'unknown';
@@ -1160,6 +1160,9 @@ class PrimeGamingClaimer(BaseClaimer):
             _save_to_json(title, code=code, store=store, url=url, status="claimed")
 
             # External or GOG code: log and save
+            regex_pattern = re.compile(
+                r"https:\\/\\/www\\.amazon\\.com\\/gp\\/product\\/ajax\\/handlers\\/submit\\-claim\\.html\\/"
+            )
             redeem_urls = {
                 "gog": "https://www.gog.com/redeem",
                 "microsoft store": "https://account.microsoft.com/billing/redeem",

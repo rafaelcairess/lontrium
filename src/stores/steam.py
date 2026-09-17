@@ -564,7 +564,7 @@ class SteamClaimer(BaseClaimer):
         has_base_game = await self._ensure_base_game(current_url)
         if not has_base_game:
             logger.warning("Skipping DLC '%s' because required base game is missing.", page_title)
-            notify_game["status"] = "failed:missing_base"
+            notify_game["status"] = "skipped:missing_base"
             return
 
         # Re-check age gate after returning from base game page
@@ -867,6 +867,10 @@ class SteamClaimer(BaseClaimer):
         await self.page.get(base_url)
         await self.sleep(4)
         
+        bg_url = await self.page.evaluate("window.location.href")
+        if "agecheck" in bg_url:
+            await self._handle_age_gate()
+            
         # Check if already owned
         owned_raw = await self.page.evaluate(
             "JSON.stringify({ owned: document.querySelector('.game_area_already_owned') !== null })"
@@ -948,7 +952,7 @@ class SteamClaimer(BaseClaimer):
             })()
             """
         )
-        await self.sleep(3)
+        await self.sleep(5)
 
     @staticmethod
     def _extract_game_id(url: str) -> str | None:
