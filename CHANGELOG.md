@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.1] - 2026-09-18
+
+### Fixed
+- **PowerShell ASCII art encoding** - Fixed an issue where the Otter ASCII art rendered as gibberish due to missing UTF-8 BOM in the `Start-ClaimerControl.ps1` script.
+- **Lost user data on new installations** - Reverted the default `CLAIMER_DATA_VOLUME` back to `lontrium_fgc_data` in the installer's `.env` to prevent users from losing their configuration and sessions when updating.
+
 ## [1.5.0] - 2026-09-17
 
 ### Added

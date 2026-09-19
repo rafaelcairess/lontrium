@@ -768,7 +768,7 @@ function Invoke-ClaimerControl(
         if ($RequestedAction -eq "update") { Update-Application }
         elseif ($RequestedAction -eq "economy") { Write-OtterAscii; Start-EconomyApplication }
         elseif ($RequestedAction -eq "scheduled") { Write-OtterAscii; Start-ScheduledApplication -DockerWasRunning $dockerWasRunning -AppWasRunning $appWasRunning }
-        elseif ($RequestedAction -eq "source") { Start-SourceApplication }
+        elseif ($RequestedAction -eq "source") { Write-OtterAscii; Start-SourceApplication }
         elseif ($RequestedAction -eq "uninstall") {
             Stop-WindowsNotifier
             Invoke-Compose @("down")
@@ -778,7 +778,7 @@ function Invoke-ClaimerControl(
                 & docker volume rm $volume
                 if ($LASTEXITCODE -ne 0) { throw "Could not remove data volume $volume" }
             }
-        } else { Start-Application }
+        } else { Write-OtterAscii; Start-Application }
         return 0
     } catch {
         Write-Host ($Script:Text.Failed -f $_.Exception.Message) -ForegroundColor Red
