@@ -15,6 +15,7 @@ this file is the first thing that runs. Here is what it does:
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
 import os
 import re
@@ -28,7 +29,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from src.core.config import cfg, settings_warnings
-from src.core.claimer import mask_account
+from src.core.privacy import mask_account
 from src.core.database import (
     init_db,
     load_dashboard_history,
@@ -38,16 +39,6 @@ from src.core.database import (
 )
 from src.core.selection import apply_run_selection
 from src.core.updates import get_update_status, notify_if_update_available
-from src.stores.aliexpress import claim_aliexpress
-from src.stores.shopee import claim_shopee
-from src.stores.epic import claim_epic
-from src.stores.epic_fab import claim_fab
-from src.stores.gamerpower import claim_gamerpower
-from src.stores.gog import claim_gog
-from src.stores.prime import claim_prime
-from src.stores.steam import claim_steam
-from src.stores.unity import claim_unity
-from src.stores.ubisoft import claim_ubisoft
 from src.core.notifier import notify
 from src.gui.settings import (
     SettingsError,
@@ -124,19 +115,19 @@ logging.getLogger("asyncio").addFilter(ReapedChildFilter())
 # ---------------------------------------------------------------------------
 
 # Registry of all available store claimers.
-# Each entry maps a short name to a (display name, function) pair.
-# When the scheduler runs, it loops through these and calls each function.
-ALL_CLAIMERS: dict[str, tuple[str, object]] = {
-    "steam":      ("Steam",        claim_steam),
-    "epic":       ("Epic Games",   claim_epic),
-    "fab":        ("Fab",          claim_fab),
-    "prime":      ("Prime Gaming", claim_prime),
-    "gog":        ("GOG",          claim_gog),
-    "ubisoft":    ("Ubisoft",      claim_ubisoft),
-    "unity":      ("Unity",        claim_unity),
-    "gamerpower": ("GamerPower",   claim_gamerpower),
-    "aliexpress": ("AliExpress",   claim_aliexpress),
-    "shopee":     ("Shopee",       claim_shopee),
+# Each entry maps a short name to display name + import target. Importing store
+# modules starts the heavy browser stack, so resolve the function only for a run.
+ALL_CLAIMERS: dict[str, tuple[str, str]] = {
+    "steam":      ("Steam",        "src.stores.steam:claim_steam"),
+    "epic":       ("Epic Games",   "src.stores.epic:claim_epic"),
+    "fab":        ("Fab",          "src.stores.epic_fab:claim_fab"),
+    "prime":      ("Prime Gaming", "src.stores.prime:claim_prime"),
+    "gog":        ("GOG",          "src.stores.gog:claim_gog"),
+    "ubisoft":    ("Ubisoft",      "src.stores.ubisoft:claim_ubisoft"),
+    "unity":      ("Unity",        "src.stores.unity:claim_unity"),
+    "gamerpower": ("GamerPower",   "src.stores.gamerpower:claim_gamerpower"),
+    "aliexpress": ("AliExpress",   "src.stores.aliexpress:claim_aliexpress"),
+    "shopee":     ("Shopee",       "src.stores.shopee:claim_shopee"),
 }
 
 # What runs when neither the CLI nor STORES names anything. GamerPower goes last so the
@@ -272,8 +263,8 @@ def _warn_about_settings() -> None:
                        "Valid: %s", ", ".join(unknown), ", ".join(ALL_CLAIMERS))
 
 
-def _get_active_claimers(requested_stores: list[str] | None = None) -> list[tuple[str, object]]:
-    """Determine which claimers to run based on CLI args / STORES env var.
+def _get_active_store_keys(requested_stores: list[str] | None = None) -> list[str]:
+    """Determine which store keys are active without importing store modules.
 
     Priority:
       1. CLI positional args  (e.g.  ``python main.py steam prime``)
@@ -294,7 +285,18 @@ def _get_active_claimers(requested_stores: list[str] | None = None) -> list[tupl
     # Published so GamerPower only delegates to stores this run actually starts.
     apply_run_selection(selected)
     logger.debug("Store selection: cli=%s STORES=%r -> %s", cli_stores, cfg.stores, selected)
-    return [(ALL_CLAIMERS[k][0], ALL_CLAIMERS[k][1]) for k in selected if k in ALL_CLAIMERS]
+    return [key for key in selected if key in ALL_CLAIMERS]
+
+
+def _get_active_claimers(requested_stores: list[str] | None = None) -> list[tuple[str, object]]:
+    """Resolve only the selected store callables immediately before a run."""
+    claimers = []
+    for key in _get_active_store_keys(requested_stores):
+        display_name, target = ALL_CLAIMERS[key]
+        module_name, function_name = target.split(":", 1)
+        function = getattr(importlib.import_module(module_name), function_name)
+        claimers.append((display_name, function))
+    return claimers
 
 
 def _print_banner() -> None:
@@ -357,108 +359,120 @@ async def run_claimers(
 
     aggregated_results = []
 
-    for name, func in claimers:
-        store_key = _store_key(name)
-        dashboard_state.begin_store(store_key)
-        try:
-            logger.debug("▶ Running %s claimer…", name)
-            res = await func()
-            if isinstance(res, dict):
-                logger.debug("%s returned %d game entr(ies): %s", name, len(res.get("games") or []), res.get("games"))
-            if isinstance(res, dict) and res.get("games"):
-                aggregated_results.append(res)
-            message, details = summarize_store_result(store_key, res)
-            succeeded = not retry_incomplete or store_result_succeeded(store_key, res)
-            record = dashboard_state.finish_store(
-                store_key,
-                message,
-                failed=not succeeded,
-                details=details,
-                message_key=(store_result_message_key(store_key, res) if succeeded else "status.failed"),
-            )
-            await _persist_dashboard_result(record)
-        except Exception:
-            logger.exception("✗ %s crashed", name)
-            record = dashboard_state.finish_store(store_key, "Falha na última execução", failed=True)
-            await _persist_dashboard_result(record)
-            if cfg.store_notify_enabled(_store_key(name)):
-                await notify(f"{name} claimer crashed with an unhandled exception. Check logs.")
+    async def _run_sequence() -> None:
+        for name, func in claimers:
+            store_key = _store_key(name)
+            dashboard_state.begin_store(store_key)
+            try:
+                logger.debug("▶ Running %s claimer…", name)
+                res = await asyncio.wait_for(func(), timeout=max(0.001, cfg.store_run_timeout))
+                if isinstance(res, dict):
+                    logger.debug("%s returned %d game entr(ies): %s", name, len(res.get("games") or []), res.get("games"))
+                if isinstance(res, dict) and res.get("games"):
+                    aggregated_results.append(res)
+                message, details = summarize_store_result(store_key, res)
+                succeeded = not retry_incomplete or store_result_succeeded(store_key, res)
+                record = dashboard_state.finish_store(
+                    store_key,
+                    message,
+                    failed=not succeeded,
+                    details=details,
+                    message_key=(store_result_message_key(store_key, res) if succeeded else "status.failed"),
+                )
+                await _persist_dashboard_result(record)
+            except TimeoutError:
+                logger.error("✗ %s exceeded the %ds store timeout", name, cfg.store_run_timeout)
+                record = dashboard_state.finish_store(
+                    store_key,
+                    "Tempo limite excedido",
+                    failed=True,
+                    message_key="status.timeout",
+                )
+                await _persist_dashboard_result(record)
+                if cfg.store_notify_enabled(store_key):
+                    await notify(f"{name} timed out after {cfg.store_run_timeout // 60} minutes. It will retry later.")
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("✗ %s crashed", name)
+                record = dashboard_state.finish_store(store_key, "Falha na última execução", failed=True)
+                await _persist_dashboard_result(record)
+                if cfg.store_notify_enabled(store_key):
+                    await notify(f"{name} claimer crashed with an unhandled exception. Check logs.")
 
-    # After standard claimers finish, check for pending GOG codes from Prime Gaming.
-    # Only run if there are actually codes with status="claimed" waiting,
-    # or if GOG_FORCE_REDEEM is explicitly enabled.
-    if "GOG" not in store_names:
-        logger.debug("Skipping pending GOG codes redemption as 'gog' is not in STORES.")
-    else:
-        try:
-            from src.core.database import async_session, ClaimedGame
-            from sqlalchemy import select
-            
-            # Quick check: are there any pending GOG codes at all?
-            has_pending = False
-            async with async_session() as session:
-                if cfg.gog_force_redeem:
-                    has_pending = True  # Force mode: always check
+        # Redeem pending GOG codes only when GOG participated in this run.
+        if "GOG" not in store_names:
+            logger.debug("Skipping pending GOG codes redemption as 'gog' is not in STORES.")
+        else:
+            try:
+                from src.core.database import async_session, ClaimedGame
+                from sqlalchemy import select
+
+                async with async_session() as session:
+                    has_pending = cfg.gog_force_redeem
+                    if not has_pending:
+                        stmt = select(ClaimedGame).where(
+                            ClaimedGame.status == "claimed",
+                            ClaimedGame.code.isnot(None),
+                            ClaimedGame.code != "",
+                        ).limit(1)
+                        result = await session.execute(stmt)
+                        has_pending = result.scalars().first() is not None
+
+                if has_pending:
+                    from src.stores.gog import GOGClaimer
+                    gog = GOGClaimer()
+                    await gog.redeem_pending_codes()
+                    if gog.notify_games:
+                        gog_entry = next((e for e in aggregated_results if e["store"] == "GOG"), None)
+                        if gog_entry:
+                            gog_entry["games"].extend(gog.notify_games)
+                        else:
+                            aggregated_results.append({"store": "GOG", "user": gog.user, "games": gog.notify_games})
                 else:
-                    stmt = select(ClaimedGame).where(
-                        ClaimedGame.status == "claimed",
-                        ClaimedGame.code.isnot(None),
-                        ClaimedGame.code != ""
-                    ).limit(1)
-                    result = await session.execute(stmt)
-                    has_pending = result.scalars().first() is not None
-            
-            if has_pending:
-                from src.stores.gog import GOGClaimer
-                gog = GOGClaimer()
-                await gog.redeem_pending_codes()
-                if gog.notify_games:
-                    gog_entry = next((e for e in aggregated_results if e["store"] == "GOG"), None)
-                    if gog_entry:
-                        gog_entry["games"].extend(gog.notify_games)
-                    else:
-                        aggregated_results.append({"store": "GOG", "user": gog.user, "games": gog.notify_games})
-            else:
-                logger.debug("No pending GOG codes to redeem.")
-        except Exception:
-            logger.exception("Failed to run post-claim GOG code redemption")
+                    logger.debug("No pending GOG codes to redeem.")
+            except Exception:
+                logger.exception("Failed to run post-claim GOG code redemption")
 
-    # Final Summary Notification
-    if cfg.notify_summary and aggregated_results:
-        from src.core.notifier import format_game_list
-        msg_parts = []
-        for result in aggregated_results:
-            # Skip stores whose notifications are silenced (NOTIFY_SKIP_STORES).
-            if not cfg.store_notify_enabled(_store_key(result.get("store", ""))):
-                continue
-            # Only real changes are reported: already-owned and skipped entries need
-            # NOTIFY_ALREADY_CLAIMED, failed ones NOTIFY_CLAIM_FAILS (both off by default).
-            keep_owned = cfg.notify_already_claimed
-            relevant_games = [
-                g for g in result["games"]
-                if "status" in g
-                and (keep_owned or "exist" not in g["status"].lower())
-                and (keep_owned or "already" not in g["status"].lower())
-                and (keep_owned or "skip" not in g["status"].lower() or "dry run" in g["status"].lower())
-                and (cfg.notify_claim_fails or "fail" not in g["status"].lower())
-            ]
-            
-            if not relevant_games:
-                logger.debug("Summary: nothing to report for %s (all %d entr(ies) filtered out)",
-                             result.get("store"), len(result["games"]))
-                continue
-                
-            account = mask_account(result.get('user'))
-            header = f"**{result['store']}** ({account}):" if account else f"**{result['store']}**:"
-            msg_parts.append(f"{header}\n{format_game_list(relevant_games)}")
-            
-        if msg_parts:
-            final_msg = "\n\n".join(msg_parts)
-            if cfg.dryrun:
-                final_msg = "🛑 **DRY RUN SUMMARY: games remaining to be claimed**\n\n" + final_msg
-            await notify(final_msg)
+        if cfg.notify_summary and aggregated_results:
+            from src.core.notifier import format_game_list
+            msg_parts = []
+            for result in aggregated_results:
+                if not cfg.store_notify_enabled(_store_key(result.get("store", ""))):
+                    continue
+                keep_owned = cfg.notify_already_claimed
+                relevant_games = [
+                    g for g in result["games"]
+                    if "status" in g
+                    and (keep_owned or "exist" not in g["status"].lower())
+                    and (keep_owned or "already" not in g["status"].lower())
+                    and (keep_owned or "skip" not in g["status"].lower() or "dry run" in g["status"].lower())
+                    and (cfg.notify_claim_fails or "fail" not in g["status"].lower())
+                ]
+                if not relevant_games:
+                    continue
+                account = mask_account(result.get('user'))
+                header = f"**{result['store']}** ({account}):" if account else f"**{result['store']}**:"
+                msg_parts.append(f"{header}\n{format_game_list(relevant_games)}")
+            if msg_parts:
+                final_msg = "\n\n".join(msg_parts)
+                if cfg.dryrun:
+                    final_msg = "🛑 **DRY RUN SUMMARY: games remaining to be claimed**\n\n" + final_msg
+                await notify(final_msg)
 
-    dashboard_state.finish_run()
+    try:
+        await asyncio.wait_for(_run_sequence(), timeout=max(0.001, cfg.claim_run_timeout))
+    except TimeoutError:
+        logger.error("✗ Claiming run exceeded the %ds global timeout", cfg.claim_run_timeout)
+        records = dashboard_state.cancel_run("Tempo limite da execução excedido", "status.runTimeout")
+        for record in records:
+            await _persist_dashboard_result(record)
+        await notify(
+            f"The claiming run timed out after {cfg.claim_run_timeout // 60} minutes. "
+            "Unfinished stores will retry later."
+        )
+    finally:
+        dashboard_state.finish_run()
     logger.info("✔ Claiming run complete.")
 
 
@@ -585,7 +599,6 @@ def _next_scheduled_run(scheduler: AsyncIOScheduler) -> str | None:
 async def main() -> None:
     """Initialise DB and either run once or start the scheduler."""
     _print_banner()
-    await notify_if_update_available(at_startup=True)
     # Effective settings (no credentials), the first thing worth knowing in a bug report.
     logger.debug(
         "Settings: dryrun=%s debug_libs=%s show=%s %dx%d timeout=%ss stores=%r scheduler_hours=%s fixed=%r tz=%s "
@@ -655,10 +668,6 @@ async def main() -> None:
     if cfg.scheduler_hours <= 0:
         logger.info("Interval scheduler disabled because SCHEDULER_HOURS=%s.", cfg.scheduler_hours)
 
-    # Delay slightly to ensure TurboVNC/X11 is fully initialized BEFORE starting Chrome
-    logger.info("Waiting for virtual display to initialize...")
-    await asyncio.sleep(3)
-
     setup_pending = cfg.gui_setup_required and not get_setup_state()["complete"]
 
     # The packaged Windows experience opens the local setup wizard before any
@@ -693,7 +702,7 @@ async def main() -> None:
         from src.gui.server import start_dashboard
 
         async def dashboard_status() -> dict:
-            enabled = [_store_key(name) for name, _ in _get_active_claimers()]
+            enabled = _get_active_store_keys()
             last_automatic_run = await load_last_automatic_run()
             schedule = {
                 "nextRun": _next_scheduled_run(scheduler),
@@ -708,6 +717,9 @@ async def main() -> None:
             }
             return dashboard_state.snapshot(enabled, schedule)
 
+        async def dashboard_history(limit: int, run_id: str | None) -> dict:
+            return {"history": dashboard_state.history(limit=limit, run_id=run_id)}
+
         async def dashboard_config() -> dict:
             return get_settings(DEFAULT_STORES)
 
@@ -717,6 +729,7 @@ async def main() -> None:
             except SettingsError:
                 raise
             _configure_scheduled_jobs(scheduler, await load_last_automatic_run())
+            dashboard_state.mark_activity()
             return result
 
         async def dashboard_setup(values: dict) -> dict:
@@ -724,6 +737,7 @@ async def main() -> None:
             _configure_scheduled_jobs(scheduler, await load_last_automatic_run())
             if scheduler.state == STATE_PAUSED:
                 scheduler.resume()
+            dashboard_state.mark_activity()
             return result
 
         async def dashboard_update() -> dict:
@@ -758,7 +772,7 @@ async def main() -> None:
                 if host_day != host_today:
                     raise ValueError("Local date is outside the current day")
                 stores = dashboard_state.pending_stores_for_day(
-                    [_store_key(name) for name, _ in _get_active_claimers()],
+                    _get_active_store_keys(),
                     host_day,
                     utc_offset_minutes,
                 )
@@ -771,6 +785,9 @@ async def main() -> None:
                 if not resolved or len(resolved) != len(set(stores)):
                     raise ValueError("Seleção de lojas inválida")
                 stores = resolved
+
+            if mode is None:
+                dashboard_state.mark_activity()
 
             busy = _claim_run_lock.locked() or (_dashboard_run_task and not _dashboard_run_task.done())
             # Shopee has its own persistent browser profile and may need the owner
@@ -815,16 +832,37 @@ async def main() -> None:
             return True
 
         async def dashboard_stop():
-            async def _stop_later():
-                await asyncio.sleep(0.5)
+            tasks = [
+                task for task in [_dashboard_run_task, *_dashboard_individual_tasks]
+                if task is not None and not task.done()
+            ]
+            for task in tasks:
+                task.cancel()
+            records = dashboard_state.cancel_run()
+            for record in records:
+                await _persist_dashboard_result(record)
+            event_id = dashboard_state.request_manual_action("stop_all", "system")
+
+            async def _fallback_exit():
+                await asyncio.sleep(10)
                 os._exit(0)
-            asyncio.create_task(_stop_later())
-            return {"accepted": True, "message": "Stopping..."}
+
+            asyncio.create_task(_fallback_exit())
+            return {
+                "accepted": True,
+                "cancelledTasks": len(tasks),
+                "hostShutdownRequested": bool(event_id),
+            }
+
+        async def dashboard_activity() -> dict:
+            dashboard_state.mark_activity()
+            return {"accepted": True}
 
         dashboard_server = start_dashboard(
             loop=asyncio.get_running_loop(),
             port=cfg.gui_port,
             status_callback=dashboard_status,
+            history_callback=dashboard_history,
             config_callback=dashboard_config,
             save_callback=dashboard_save,
             setup_callback=dashboard_setup,
@@ -832,7 +870,26 @@ async def main() -> None:
             manual_actions_callback=dashboard_manual_actions,
             run_callback=dashboard_run,
             stop_callback=dashboard_stop,
+            activity_callback=dashboard_activity,
         )
+        asyncio.create_task(notify_if_update_available(at_startup=True))
+
+        async def _idle_shutdown_monitor() -> None:
+            if not cfg.windows_host_scheduler or cfg.gui_idle_timeout <= 0:
+                return
+            while True:
+                await asyncio.sleep(min(30, max(1, cfg.gui_idle_timeout)))
+                if get_setup_state()["complete"] and not dashboard_state.snapshot([], {})["running"]:
+                    if dashboard_state.idle_seconds() >= cfg.gui_idle_timeout:
+                        logger.info("Dashboard idle for %ds; requesting economy shutdown.", cfg.gui_idle_timeout)
+                        dashboard_state.request_manual_action("stop_all", "system")
+                        return
+
+        asyncio.create_task(_idle_shutdown_monitor())
+    else:
+        # Headless users still receive update notifications; the GUI path above
+        # deliberately starts this only after the dashboard is listening.
+        asyncio.create_task(notify_if_update_available(at_startup=True))
     interval_text = (
         f"runs every {cfg.scheduler_hours} hours"
         if cfg.scheduler_hours > 0

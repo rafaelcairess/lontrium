@@ -38,7 +38,7 @@
 - Claims eligible free games, assets and rewards from your selected stores.
 - Collects daily coin rewards from AliExpress and Shopee and shows the result and balance.
 - Shows the actual result of each run instead of only a generic success count.
-- On Windows, uses native scheduled tasks at sign-in, 12:00, 16:00 and 19:00, then releases Docker/WSL memory.
+- On Windows, uses native scheduled tasks at the chosen times (12:00, 16:00 and 19:00 by default), catches up missed times, then releases Docker/WSL memory.
 - Skips stores already completed that day and retries only stores that failed, need login/CAPTCHA or have not run yet.
 - Opens a visual browser whenever a store requires manual login or confirmation.
 - Keeps the dashboard, settings, database and browser sessions on your computer.
@@ -93,7 +93,7 @@ You can revisit the complete introduction later from **Settings → Introduction
 ## How it works
 
 ```text
-Windows Task Scheduler (sign-in + configured daily times)
+Windows Task Scheduler (configured daily times + missed-run catch-up)
       │
       ├─ starts Docker Desktop and the local container only when needed
       ├─ runs stores without a successful result for the current local day
@@ -154,7 +154,7 @@ Browser login is the recommended default, so the assistant does not request pass
 
 When upgrading from the older Free Games Claimer layout, the launcher may ask whether it should reuse existing local accounts and sessions. Choose **Yes** unless you intentionally want a clean profile. Lontrium changes the container and application image, not the selected persistent data volume.
 
-The normal shortcut still opens the dashboard on demand. In automatic economy mode, Windows triggers Lontrium at sign-in and at the configured times (12:00, 16:00 and 19:00 by default). A store that succeeds once is skipped for the rest of that local day; only unfinished stores retry later. Docker Desktop, the container and the notification helper are stopped afterward only when that scheduled run started them. Nothing from Lontrium remains resident between runs. If Docker or the dashboard was already open, Lontrium leaves it open. Uninstalling removes only Lontrium's scheduled task and keeps accounts and sessions unless local-data deletion is explicitly selected.
+The normal shortcut still opens the dashboard on demand. In automatic economy mode, Windows triggers Lontrium at the configured times (12:00, 16:00 and 19:00 by default) and catches up a missed time when the PC returns. A store that succeeds once is skipped for the rest of that local day; only unfinished stores retry later. Docker Desktop, the container and the notification helper are stopped afterward only when that scheduled run started them. Manual dashboards also stop after 30 minutes without real user activity. Nothing from Lontrium remains resident between runs. If Docker or the dashboard was already open, Lontrium leaves it open. Uninstalling removes only Lontrium's scheduled task and keeps accounts and sessions unless local-data deletion is explicitly selected.
 
 ## Need help?
 

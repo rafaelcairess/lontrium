@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 from pathlib import Path
 from datetime import datetime, timezone
@@ -29,6 +30,7 @@ from datetime import datetime, timezone
 import nodriver as uc
 
 from src.core.config import cfg
+from src.core.privacy import mask_account
 
 logger = logging.getLogger("fgc.claimer")
 
@@ -36,15 +38,6 @@ logger = logging.getLogger("fgc.claimer")
 def now_str() -> str:
     """Return a human-readable UTC timestamp string."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-
-
-def mask_account(name) -> str:
-    """Account label safe for a log someone pastes into a bug report: a.n.other@mail.com -> a***@mail.com."""
-    text = str(name or "")
-    local, at, domain = text.partition("@")
-    if not at:
-        return text          # a nickname is not personal data, leave it readable
-    return f"{local[:1]}***@{domain}"
 
 
 async def open_first_tab(browser, url: str = "about:blank", attempts: int = 10, delay: float = 1.0):
@@ -205,6 +198,17 @@ class BaseClaimer:
             extra_args: Additional Chromium flags.
         """
         import shutil
+
+        # The dashboard can become ready immediately. Wait for X11 only when a
+        # browser is actually requested, and return instantly on the normal path.
+        display_socket = Path("/tmp/.X11-unix/X1")
+        if (cfg.show or force_headful) and os.name != "nt":
+            for _ in range(50):
+                if display_socket.exists():
+                    break
+                await asyncio.sleep(0.1)
+            else:
+                raise RuntimeError("The virtual display did not become ready within 5 seconds")
 
         # Ensure persistent browser profile directory exists (per store)
         store_browser_dir = cfg.browser_dir / (self.profile_name or self.store_name)

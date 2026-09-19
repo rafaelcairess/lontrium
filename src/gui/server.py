@@ -5,13 +5,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import secrets
 from collections.abc import Awaitable, Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 
 logger = logging.getLogger("fgc.gui")
@@ -26,6 +27,7 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         address,
         loop: asyncio.AbstractEventLoop,
         status_callback: Callable[[], Awaitable[dict]],
+        history_callback: Callable[..., Awaitable[dict]],
         config_callback: Callable[[], Awaitable[dict]],
         save_callback: Callable[[dict], Awaitable[dict]],
         setup_callback: Callable[[dict], Awaitable[dict]],
@@ -33,10 +35,12 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         manual_actions_callback: Callable[[], Awaitable[dict]],
         run_callback: Callable[..., Awaitable[bool | dict]],
         stop_callback: Callable[[], Awaitable[dict]],
+        activity_callback: Callable[[], Awaitable[dict]],
     ) -> None:
         super().__init__(address, DashboardHandler)
         self.loop = loop
         self.status_callback = status_callback
+        self.history_callback = history_callback
         self.config_callback = config_callback
         self.save_callback = save_callback
         self.setup_callback = setup_callback
@@ -44,6 +48,7 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         self.manual_actions_callback = manual_actions_callback
         self.run_callback = run_callback
         self.stop_callback = stop_callback
+        self.activity_callback = activity_callback
         self.csrf_token = secrets.token_urlsafe(32)
 
     def await_result(self, awaitable: Awaitable[dict] | Awaitable[bool]):
@@ -135,10 +140,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._json({"error": "Interface indisponível"}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def do_GET(self) -> None:
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         try:
             if path == "/api/status":
                 self._json(self.server.await_result(self.server.status_callback()))
+            elif path == "/api/history":
+                query = parse_qs(parsed.query, keep_blank_values=True)
+                try:
+                    limit = int(query.get("limit", ["250"])[0])
+                except ValueError as exc:
+                    raise ValueError("Invalid history limit") from exc
+                if not 1 <= limit <= 250:
+                    raise ValueError("History limit must be between 1 and 250")
+                run_id = query.get("runId", [None])[0]
+                if run_id is not None and not re.fullmatch(r"[a-f0-9]{32}", run_id):
+                    raise ValueError("Invalid run identifier")
+                self._json(self.server.await_result(self.server.history_callback(limit, run_id)))
             elif path == "/api/config":
                 self._json(self.server.await_result(self.server.config_callback()))
             elif path == "/api/update":
@@ -147,6 +165,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._json(self.server.await_result(self.server.manual_actions_callback()))
             else:
                 self._serve_static(path)
+        except ValueError as exc:
+            self._json({"error": str(exc), "code": "error.invalidRequest"}, HTTPStatus.BAD_REQUEST)
         except Exception:
             logger.exception("Dashboard GET failed for %s", path)
             self._json({"error": "Falha interna no painel"}, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -187,6 +207,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._json(result)
             elif path == "/api/stop":
                 self._json(self.server.await_result(self.server.stop_callback()), HTTPStatus.ACCEPTED)
+            elif path == "/api/activity":
+                self._json(self.server.await_result(self.server.activity_callback()))
             else:
                 self._json({"error": "Não encontrado"}, HTTPStatus.NOT_FOUND)
         except ValueError as exc:
@@ -204,6 +226,7 @@ def start_dashboard(
     loop: asyncio.AbstractEventLoop,
     port: int,
     status_callback: Callable[[], Awaitable[dict]],
+    history_callback: Callable[..., Awaitable[dict]],
     config_callback: Callable[[], Awaitable[dict]],
     save_callback: Callable[[dict], Awaitable[dict]],
     setup_callback: Callable[[dict], Awaitable[dict]],
@@ -211,12 +234,14 @@ def start_dashboard(
     manual_actions_callback: Callable[[], Awaitable[dict]],
     run_callback: Callable[..., Awaitable[bool | dict]],
     stop_callback: Callable[[], Awaitable[dict]],
+    activity_callback: Callable[[], Awaitable[dict]],
 ) -> DashboardHTTPServer:
     """Start the dashboard server in a daemon thread."""
     server = DashboardHTTPServer(
         ("0.0.0.0", port),
         loop,
         status_callback,
+        history_callback,
         config_callback,
         save_callback,
         setup_callback,
@@ -224,6 +249,7 @@ def start_dashboard(
         manual_actions_callback,
         run_callback,
         stop_callback,
+        activity_callback,
     )
     Thread(target=server.serve_forever, name="fgc-dashboard", daemon=True).start()
     logger.info("🖥️ Local dashboard ready at http://localhost:%s", port)

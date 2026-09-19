@@ -96,7 +96,8 @@ namespace Lontrium.Notifier
                     if (config?.values == null) return null;
                     return string.Join("|", config.values.WINDOWS_ECONOMY_SCHEDULE,
                         config.values.RUN_ON_STARTUP, config.values.WINDOWS_WAKE_ON_AC,
-                        config.values.SCHEDULER_FIXED_TIMES ?? "");
+                        config.values.SCHEDULER_FIXED_TIMES ?? "",
+                        string.Join(",", config.values.STORES ?? new string[0]));
                 }
             }
             catch
@@ -275,6 +276,7 @@ namespace Lontrium.Notifier
             public bool RUN_ON_STARTUP { get; set; }
             public bool WINDOWS_WAKE_ON_AC { get; set; }
             public string SCHEDULER_FIXED_TIMES { get; set; }
+            public string[] STORES { get; set; }
         }
     }
 }

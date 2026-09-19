@@ -7,7 +7,7 @@ services:
     image: ghcr.io/rafaelcairess/lontrium:${CLAIMER_TAG:-latest}
     container_name: fgc-remaster
     build: .
-    restart: unless-stopped
+    restart: "no"
     mem_limit: ${CLAIMER_MEMORY_LIMIT:-2g}
     pids_limit: ${CLAIMER_PIDS_LIMIT:-512}
     logging:
@@ -18,7 +18,7 @@ services:
     tty: true
     stdin_open: true
     ports:
-      - "${NOVNC_PORT:-7080}:7080"
+      - "127.0.0.1:${NOVNC_PORT:-7080}:7080"
       - "127.0.0.1:${GUI_PORT:-8080}:8080"
     volumes:
       - fgc_data:/fgc/data

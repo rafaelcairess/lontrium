@@ -24,7 +24,7 @@
   },
   "storeAuth": {"shopee": ""},
   "status": {
-    "waiting": "Waiting for a run", "queued": "Queued", "runningNow": "Running now", "failed": "Last run failed", "cancelled": "Cancelled by user",
+    "waiting": "Waiting for a run", "queued": "Queued", "runningNow": "Running now", "failed": "Last run failed", "cancelled": "Cancelled by user", "timeout": "Store time limit exceeded", "runTimeout": "Run time limit exceeded",
     "completedNoChanges": "Completed with no changes", "noActiveGiveaways": "No active Free-to-Keep promotions", "resultGames": "Run details", "resultCoins": "Coin check-in details",
     "claimed": "Claimed", "owned": "Already in library", "available": "Available", "failedItem": "Failed", "skipped": "Skipped",
     "actionRequired": "Action required", "processed": "Checked", "run": "Run", "runningButton": "Running"
@@ -95,7 +95,7 @@
     "accountsTitle": "Connect your accounts", "accountsCopy": "Only the stores you selected are shown. You can change this choice later in Settings.",
     "manualPlanTitle": "No passwords will be saved now", "manualPlanCopy": "On the first run, open Browser when requested and sign in on each official website. Lontrium will reuse those local browser sessions afterward.",
     "scheduleTitle": "Choose automation", "scheduleCopy": "Choose a simple routine. Custom intervals and multiple times remain available later in Settings.",
-    "scheduleStartupTitle": "When Lontrium starts + daily", "scheduleStartupCopy": "Run whenever Lontrium starts and check again at the selected daily time.",
+    "scheduleStartupTitle": "Keep dashboard available", "scheduleStartupCopy": "Start Lontrium when you sign in and keep the dashboard ready for manual use.",
     "scheduleDailyTitle": "Once a day", "scheduleDailyCopy": "Run only at the selected time while Docker and Lontrium are available.",
     "scheduleManualTitle": "Manual only", "scheduleManualCopy": "Do not schedule claims. You start all stores or one store from the dashboard.",
     "dailyTime": "Daily check time", "timezone": "Timezone: {timezone}",
@@ -103,7 +103,7 @@
     "finish": "Finish and run", "selectedStores": "Selected stores", "loginMethod": "Login method", "credentialsConfigured": "Accounts filled now", "noneStoredNow": "None — browser login selected", "automation": "Automation", "nextStep": "What happens next", "nextManualLogin": "The dashboard opens and starts the selected stores. Use Browser when a store asks you to sign in.", "nextRun": "The dashboard opens and starts the selected stores.", "interval": "Run interval", "hours": "every {count} hours",
     "manualSchedule": "manual or fixed times only", "localOnly": "Dashboard available only on this computer"
   },
-  "hostSchedule": {"economyTitle": "Automatic economy mode", "economyCopy": "Run at sign-in and at 12:00, 16:00 and 19:00. Docker closes after pending stores finish.", "dashboardTitle": "Keep the dashboard available", "dashboardCopy": "Start Lontrium at sign-in and keep Docker running for immediate access.", "pendingStores": "Pending today", "completedToday": "Completed today", "retryPending": "Retry scheduled"},
+  "hostSchedule": {"economyTitle": "Automatic economy mode", "economyCopy": "Runs at your chosen times and catches up after the PC returns. Docker closes after pending stores finish.", "dashboardTitle": "Keep the dashboard available", "dashboardCopy": "Start Lontrium at sign-in and keep Docker running for immediate access.", "pendingStores": "Pending today", "completedToday": "Completed today", "retryPending": "Retry scheduled"},
   "update": {"available": "Version {version} is available.", "review": "Review update", "confirm": "Open the local updater to install version {version}?", "current": "You are up to date."},
   "error": {
     "generic": "The operation could not be completed.", "invalidSettings": "Check the settings and try again.", "integer": "Enter a whole number.", "minimum": "The value is below the allowed minimum.",

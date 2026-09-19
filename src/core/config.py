@@ -174,13 +174,16 @@ class Config:
     scheduler_hours: int = _int("SCHEDULER_HOURS", 12)
     scheduler_timezone: str = os.getenv("SCHEDULER_TIMEZONE", "UTC").strip() or "UTC"
     scheduler_fixed_times: str = os.getenv("SCHEDULER_FIXED_TIMES", "")
-    run_on_startup: bool = _bool("RUN_ON_STARTUP", default=True)
+    run_on_startup: bool = _bool("RUN_ON_STARTUP", default=False)
     # Packaged Windows installs delegate scheduling to Task Scheduler so Docker
     # can remain fully stopped between runs. Source/Docker installs keep the
     # established in-container scheduler unless explicitly opted in.
     windows_host_scheduler: bool = _bool("WINDOWS_HOST_SCHEDULER", default=False)
     windows_economy_schedule: bool = _bool("WINDOWS_ECONOMY_SCHEDULE", default=True)
     windows_wake_on_ac: bool = _bool("WINDOWS_WAKE_ON_AC", default=True)
+    store_run_timeout: int = _int("STORE_RUN_TIMEOUT", 900)
+    claim_run_timeout: int = _int("CLAIM_RUN_TIMEOUT", 2700)
+    gui_idle_timeout: int = _int("GUI_IDLE_TIMEOUT", 1800)
 
     # --- Local web dashboard ---
     gui_enabled: bool = _bool("GUI_ENABLED", default=True)

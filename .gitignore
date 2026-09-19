@@ -22,6 +22,8 @@ Thumbs.db
 
 # Debug tools
 debug_*
+scratch_*
+/*.html
 
 # Local AliExpress captures and runtime artifacts
 ae_coin_api.json

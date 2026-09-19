@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.0] - 2026-09-19
+
+### Changed
+- **Economy Mode Default**: Economy mode is now the default setting. The system intelligently stops the Docker container after the schedule finishes instead of keeping it running 24/7.
+- **Migration of Scheduled Tasks**: Windows Task Scheduler tasks from legacy versions are now correctly migrated, even on the first run after an update triggered by a scheduled execution.
+
 ## [1.5.1] - 2026-09-18
 
 ### Fixed

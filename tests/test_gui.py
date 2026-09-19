@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import subprocess
+import sys
 from datetime import date
 from http.client import HTTPConnection
 from pathlib import Path
@@ -14,6 +16,39 @@ import pytest
 from src.gui import settings
 from src.gui.server import start_dashboard
 from src.gui.state import DashboardState, store_result_succeeded, summarize_store_result
+
+
+def test_status_polling_does_not_reset_manual_activity(monkeypatch):
+    import src.gui.state as state_module
+
+    clock = [100.0]
+    monkeypatch.setattr(state_module, "monotonic", lambda: clock[0])
+    state = DashboardState()
+
+    clock[0] = 130.0
+    state.snapshot(["epic"])
+    state.snapshot(["epic"])
+    assert state.idle_seconds() == 30.0
+
+    state.mark_activity()
+    clock[0] = 145.0
+    assert state.idle_seconds() == 15.0
+
+
+def test_importing_main_does_not_load_store_modules():
+    root = Path(__file__).resolve().parent.parent
+    script = (
+        "import main, sys; "
+        "assert not [name for name in sys.modules if name.startswith('src.stores.') ]"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_pending_stores_retry_failures_but_skip_today_successes():
@@ -234,7 +269,8 @@ def test_dashboard_state_only_exposes_safe_result_details():
     payload = state.snapshot(["aliexpress"], {"nextRun": None})
     ali = next(store for store in payload["stores"] if store["key"] == "aliexpress")
     assert payload["running"] is False
-    assert len(payload["history"]) == 1
+    assert "history" not in payload
+    assert len(state.history()) == 1
     assert ali["state"] == "success"
     assert ali["enabled"] is True
     assert ali["details"] == {"kind": "coins", "claimedCoins": 15, "balance": 120}
@@ -359,6 +395,12 @@ def test_dashboard_http_api_and_csrf():
     async def status():
         return {"running": False, "stores": [], "schedule": {}}
 
+    history_calls = []
+
+    async def history(limit, run_id):
+        history_calls.append((limit, run_id))
+        return {"history": []}
+
     async def config():
         return {"schema": [], "values": {}, "configured": {}}
 
@@ -387,10 +429,17 @@ def test_dashboard_http_api_and_csrf():
         stop_calls.append(True)
         return {"accepted": True, "cancelledTasks": 1, "hostShutdownRequested": True}
 
+    activity_calls = []
+
+    async def activity():
+        activity_calls.append(True)
+        return {"accepted": True}
+
     server = start_dashboard(
         loop=loop,
         port=0,
         status_callback=status,
+        history_callback=history,
         config_callback=config,
         save_callback=save,
         setup_callback=setup,
@@ -398,11 +447,15 @@ def test_dashboard_http_api_and_csrf():
         manual_actions_callback=manual_actions,
         run_callback=run,
         stop_callback=stop,
+        activity_callback=activity,
     )
     base = f"http://127.0.0.1:{server.server_address[1]}"
     try:
         with urlopen(f"{base}/api/status", timeout=3) as response:
             assert json.load(response)["running"] is False
+        with urlopen(f"{base}/api/history?limit=5&runId={'a' * 32}", timeout=3) as response:
+            assert json.load(response) == {"history": []}
+        assert history_calls == [(5, "a" * 32)]
 
         with urlopen(f"{base}/assets/icons/aliexpress.svg", timeout=3) as response:
             assert response.headers.get_content_type() == "image/svg+xml"
@@ -480,6 +533,16 @@ def test_dashboard_http_api_and_csrf():
                 "hostShutdownRequested": True,
             }
         assert stop_calls == [True, True]
+
+        activity_request = Request(
+            f"{base}/api/activity",
+            data=b"{}",
+            headers={"Content-Type": "application/json", "X-FGC-Token": server.csrf_token},
+            method="POST",
+        )
+        with urlopen(activity_request, timeout=3) as response:
+            assert json.load(response) == {"accepted": True}
+        assert activity_calls == [True]
 
         scheduled = Request(
             f"{base}/api/run",
@@ -571,7 +634,9 @@ def test_frontend_is_local_and_contains_store_controls():
     assert "result-outcome" in script
     assert "storeManagerForm" in html
     assert "historyList" in html
-    assert "renderHistory(status)" in script
+    assert "renderHistory(latestHistory)" in script
+    assert "/api/history" in script
+    assert "/api/activity" in script
     assert "statusPollDelay" in script
     assert "document.hidden" in script
     assert "setInterval(() => refreshStatus(), 3000)" not in script

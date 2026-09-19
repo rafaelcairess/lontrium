@@ -1,6 +1,6 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
-    [ValidateSet("start", "stop", "economy", "scheduled", "sync-schedule", "configure-economy", "configure-dashboard", "configure-manual", "source", "update", "uninstall", "check")]
+    [ValidateSet("start", "stop", "economy", "scheduled", "sync-schedule", "configure-economy", "configure-dashboard", "configure-manual", "source", "source-build", "update", "uninstall", "check")]
     [string]$Action = "start",
     [ValidateSet("auto", "en", "pt-BR", "es")]
     [string]$Language = "auto",
@@ -29,7 +29,7 @@ $Messages = @{
         DockerTimeout = "Docker Desktop did not become ready in time. Open Docker Desktop, finish its first-run screens, then use the Lontrium Control shortcut again."
         Pulling = "Downloading the Lontrium Control application..."
         Starting = "Starting Lontrium Control..."
-        StartingSource = "Building and starting Lontrium Control from this source folder..."
+        StartingSource = "Starting Lontrium Control from this source folder..."
         WaitingPanel = "Waiting for the local dashboard"
         PanelTimeout = "The container started, but the local dashboard did not respond. Open Docker Desktop and check the claimer-control container."
         Ready = "Lontrium Control is ready. Opening the local dashboard..."
@@ -37,7 +37,7 @@ $Messages = @{
         EconomyComplete = "Automatic run finished. Releasing Docker and WSL memory..."
         EconomyNoRun = "No automatic run is due. Releasing Docker and WSL memory..."
         EconomySetup = "Initial setup is not complete. The dashboard will remain open."
-        EconomyTimeout = "The automatic run did not finish in time. Docker will remain running so you can inspect the dashboard."
+        EconomyTimeout = "The automatic run did not finish in time. Releasing resources started by Lontrium..."
         EconomySharedDocker = "Another container is running. Lontrium was stopped, but Docker will remain available for the other application."
         ScheduleComplete = "Today's enabled stores are already complete. Releasing resources..."
         ScheduleSynced = "Windows automation schedule updated."
@@ -73,7 +73,7 @@ $Messages = @{
         EconomyComplete = "Coleta automática concluída. Liberando a memória do Docker e do WSL..."
         EconomyNoRun = "Nenhuma coleta automática está pendente. Liberando a memória do Docker e do WSL..."
         EconomySetup = "A configuração inicial ainda não terminou. O painel permanecerá aberto."
-        EconomyTimeout = "A coleta automática não terminou a tempo. O Docker permanecerá ligado para você verificar o painel."
+        EconomyTimeout = "A coleta automática não terminou a tempo. Liberando os recursos iniciados pelo Lontrium..."
         EconomySharedDocker = "Outro container está em execução. O Lontrium foi parado, mas o Docker continuará disponível para o outro aplicativo."
         ScheduleComplete = "As lojas habilitadas já foram concluídas hoje. Liberando recursos..."
         ScheduleSynced = "Agendamento automático do Windows atualizado."
@@ -109,7 +109,7 @@ $Messages = @{
         EconomyComplete = "La ejecución automática terminó. Liberando la memoria de Docker y WSL..."
         EconomyNoRun = "No hay ninguna ejecución automática pendiente. Liberando la memoria de Docker y WSL..."
         EconomySetup = "La configuración inicial no ha terminado. El panel permanecerá abierto."
-        EconomyTimeout = "La ejecución automática no terminó a tiempo. Docker seguirá activo para que puedas revisar el panel."
+        EconomyTimeout = "La ejecución automática no terminó a tiempo. Liberando los recursos iniciados por Lontrium..."
         EconomySharedDocker = "Hay otro contenedor en ejecución. Lontrium se detuvo, pero Docker seguirá disponible para la otra aplicación."
         ScheduleComplete = "Las tiendas habilitadas ya se completaron hoy. Liberando recursos..."
         ScheduleSynced = "Programación automática de Windows actualizada."
@@ -137,16 +137,29 @@ $Script:Locale = Resolve-Language
 $Script:Text = $Messages[$Script:Locale]
 $ComposeFile = Join-Path $PSScriptRoot "docker-compose.yml"
 $EnvironmentFile = Join-Path $PSScriptRoot "claimer.env"
-if ($Action -eq "source") {
+if ($Action -in @("source", "source-build")) {
     $sourceRoot = Split-Path -Parent $PSScriptRoot
     $ComposeFile = Join-Path $sourceRoot "docker-compose.yml"
     $EnvironmentFile = Join-Path $sourceRoot ".env"
 }
 $PanelUrl = "http://127.0.0.1:8080"
 $ReleaseApi = "https://api.github.com/repos/rafaelcairess/lontrium/releases/latest"
-$NotifierPath = Join-Path $PSScriptRoot "Lontrium.Notifier.exe"
+$NotifierCandidates = @(
+    (Join-Path $PSScriptRoot "Lontrium.Notifier.exe"),
+    (Join-Path $PSScriptRoot "windows-notifier\bin\Release\net48\Lontrium.Notifier.exe"),
+    (Join-Path $PSScriptRoot "windows-notifier\bin\Debug\net48\Lontrium.Notifier.exe")
+)
+$NotifierPaths = @($NotifierCandidates | Where-Object { Test-Path -LiteralPath $_ })
+$NotifierPath = $NotifierPaths | Select-Object -First 1
+if (-not $NotifierPath) {
+    $NotifierPath = $NotifierCandidates[0]
+    $NotifierPaths = @($NotifierPath)
+}
 $ScheduledTaskName = "Lontrium Control - Automatic Collection"
 $PendingModePath = Join-Path $PSScriptRoot "installer-mode.pending"
+$StateDirectory = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "Lontrium Control"
+$SmartWakePath = Join-Path $StateDirectory "smart_wake.txt"
+$LegacySmartWakePath = Join-Path $PSScriptRoot "state\smart_wake.txt"
 
 function Write-Step([string]$Message) {
     Write-Host "`n> $Message" -ForegroundColor Cyan
@@ -314,26 +327,104 @@ function Remove-WindowsSchedule {
     Unregister-ScheduledTask -TaskName $ScheduledTaskName -Confirm:$false -ErrorAction SilentlyContinue
 }
 
+function Get-Sha256Hex([string]$Value) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Value)))).Replace("-", "")
+    } finally {
+        $sha.Dispose()
+    }
+}
+
+function Test-SmartWakeCompleteToday {
+    foreach ($path in @($SmartWakePath, $LegacySmartWakePath)) {
+        if (-not (Test-Path -LiteralPath $path)) { continue }
+        $completedDate = (Get-Content -LiteralPath $path -Raw).Trim()
+        if ($completedDate -eq (Get-Date).ToString("yyyy-MM-dd", [Globalization.CultureInfo]::InvariantCulture)) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Update-ScheduleConfigurationSignature(
+    [string]$Signature,
+    [string]$TargetStateDirectory = $StateDirectory
+) {
+    $signaturePath = Join-Path $TargetStateDirectory "schedule_config.sha256"
+    $smartWakePath = Join-Path $TargetStateDirectory "smart_wake.txt"
+    $previous = if (Test-Path -LiteralPath $signaturePath) {
+        (Get-Content -LiteralPath $signaturePath -Raw).Trim()
+    } else { "" }
+    if ($previous -eq $Signature) { return $false }
+
+    if (-not (Test-Path -LiteralPath $TargetStateDirectory)) {
+        New-Item -ItemType Directory -Path $TargetStateDirectory -Force | Out-Null
+    }
+    Set-Content -LiteralPath $signaturePath -Value $Signature -Encoding ASCII
+    if (Test-Path -LiteralPath $smartWakePath) {
+        Remove-Item -LiteralPath $smartWakePath -Force
+    }
+    return $true
+}
+
+function Set-DashboardConfigurationValues([hashtable]$Values) {
+    $payload = @{values = $Values} | ConvertTo-Json -Compress
+    Invoke-RestMethod -Uri "$PanelUrl/api/config" -Method Post -ContentType "application/json" -Headers @{"X-FGC-Token" = (Get-DashboardToken)} -Body $payload -TimeoutSec 15 | Out-Null
+}
+
 function Sync-WindowsSchedule {
     $config = Get-DashboardJson "/api/config"
     $values = $config.values
-    Remove-WindowsSchedule
-
     $economy = [bool]$values.WINDOWS_ECONOMY_SCHEDULE
     $runAtLogon = [bool]$values.RUN_ON_STARTUP
-    if (-not $economy -and -not $runAtLogon) { return }
+    # Older economy installations used RUN_ON_STARTUP=true. Besides creating a
+    # logon trigger, that also starts a collection as soon as the container
+    # comes up. Normalize it once so only the requested Windows times can run.
+    if ($economy -and $runAtLogon) {
+        Set-DashboardConfigurationValues @{RUN_ON_STARTUP = $false}
+        $runAtLogon = $false
+    }
+    $wakeOnAc = [bool]$values.WINDOWS_WAKE_ON_AC
+    $times = @(([string]$values.SCHEDULER_FIXED_TIMES -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $stores = @($values.STORES | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } | Where-Object { $_ } | Sort-Object -Unique)
+    $configurationSource = @(
+        "economy=$economy", "logon=$runAtLogon", "wake=$wakeOnAc",
+        "times=$($times -join ',')", "stores=$($stores -join ',')"
+    ) -join "|"
+    $configurationChanged = Update-ScheduleConfigurationSignature (Get-Sha256Hex $configurationSource)
+    if ($configurationChanged -and (Test-Path -LiteralPath $LegacySmartWakePath)) {
+        Remove-Item -LiteralPath $LegacySmartWakePath -Force
+    }
+
+    $existing = Get-ScheduledTask -TaskName $ScheduledTaskName -ErrorAction SilentlyContinue
+    if (-not $economy -and -not $runAtLogon) {
+        if ($existing) { Remove-WindowsSchedule }
+        return
+    }
 
     $launcher = $PSCommandPath
     if (-not $launcher) { $launcher = Join-Path $PSScriptRoot "Start-ClaimerControl.ps1" }
     $scheduledAction = if ($economy) { "scheduled" } else { "start" }
+    $effectiveLogon = -not $economy -and $runAtLogon
+    $effectiveWake = $economy -and $wakeOnAc
+    $signatureSource = @(
+        "economy=$economy", "logon=$effectiveLogon", "wake=$effectiveWake",
+        "times=$($times -join ',')", "action=$scheduledAction", "launcher=$launcher"
+    ) -join "|"
+    $signature = Get-Sha256Hex $signatureSource
+    $description = "Starts Lontrium only when an automatic collection is due. Config:$signature"
+    if ($existing -and [string]$existing.Description -eq $description) { return }
+
+    if ($existing) { Remove-WindowsSchedule }
     $arguments = '-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Action {1} -Language auto' -f $launcher, $scheduledAction
     $taskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $arguments -WorkingDirectory $PSScriptRoot
     $triggers = @()
-    if ($runAtLogon) {
+    if ($effectiveLogon) {
         $triggers += New-ScheduledTaskTrigger -AtLogOn -User ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
     }
     if ($economy) {
-        foreach ($item in ([string]$values.SCHEDULER_FIXED_TIMES -split ',')) {
+        foreach ($item in $times) {
             $parsed = [datetime]::MinValue
             if ([datetime]::TryParseExact($item.Trim(), "HH:mm", [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed)) {
                 $triggers += New-ScheduledTaskTrigger -Daily -At $parsed
@@ -345,13 +436,22 @@ function Sync-WindowsSchedule {
     $settingsArgs = @{
         StartWhenAvailable = $true
         MultipleInstances = "IgnoreNew"
-        ExecutionTimeLimit = (New-TimeSpan -Hours 2)
+        ExecutionTimeLimit = (New-TimeSpan -Hours 1)
     }
-    if ($economy -and [bool]$values.WINDOWS_WAKE_ON_AC) { $settingsArgs.WakeToRun = $true }
+    if ($effectiveWake) { $settingsArgs.WakeToRun = $true }
     $taskSettings = New-ScheduledTaskSettingsSet @settingsArgs
     $principal = New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
-    Register-ScheduledTask -TaskName $ScheduledTaskName -Action $taskAction -Trigger $triggers -Settings $taskSettings -Principal $principal -Description "Starts Lontrium only when an automatic collection is due." -Force | Out-Null
+    Register-ScheduledTask -TaskName $ScheduledTaskName -Action $taskAction -Trigger $triggers -Settings $taskSettings -Principal $principal -Description $description -Force | Out-Null
     Write-Host $Script:Text.ScheduleSynced -ForegroundColor Green
+}
+
+function Ensure-WindowsScheduleMigration {
+    $existing = Get-ScheduledTask -TaskName $ScheduledTaskName -ErrorAction SilentlyContinue
+    if ($existing -and [string]$existing.Description -notmatch 'Config:[A-F0-9]{64}$') {
+        Sync-WindowsSchedule
+        return $true
+    }
+    return $false
 }
 
 function Get-LegacyDataVolumeFromInspect([string]$Json) {
@@ -392,7 +492,7 @@ function Adopt-LegacyData {
 }
 
 function Invoke-Compose([string[]]$Arguments) {
-    if ($Action -eq "source") {
+    if ($Action -in @("source", "source-build")) {
         & docker compose --env-file $EnvironmentFile -f $ComposeFile @Arguments
     } else {
         & docker compose --project-name claimer-control --env-file $EnvironmentFile -f $ComposeFile @Arguments
@@ -419,6 +519,15 @@ function Wait-Panel {
     throw $Script:Text.PanelTimeout
 }
 
+function Test-PanelReady {
+    try {
+        $response = Invoke-WebRequest -UseBasicParsing -Uri "$PanelUrl/api/status" -TimeoutSec 1
+        return $response.StatusCode -eq 200
+    } catch {
+        return $false
+    }
+}
+
 function Start-WindowsNotifier {
     if (Test-Path -LiteralPath $NotifierPath) {
         Start-Process -FilePath $NotifierPath -WindowStyle Hidden | Out-Null
@@ -428,7 +537,7 @@ function Start-WindowsNotifier {
 function Stop-WindowsNotifier {
     Get-Process -Name "Lontrium.Notifier" -ErrorAction SilentlyContinue | ForEach-Object {
         try {
-            if ($_.Path -eq $NotifierPath) { Stop-Process -Id $_.Id -Force }
+            if ($NotifierPaths -contains $_.Path) { Stop-Process -Id $_.Id -Force }
         } catch { }
     }
 }
@@ -443,22 +552,31 @@ function Get-LatestReleaseTag {
 
 function Start-Application {
     Adopt-LegacyData
-    Write-Step $Script:Text.Pulling
-    Invoke-Compose @("pull", "app")
     Write-Step $Script:Text.Starting
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
-    Apply-PendingInstallerMode
+    $configurationChanged = Apply-PendingInstallerMode
     Start-WindowsNotifier
-    Sync-WindowsSchedule
+    if ($configurationChanged) { Sync-WindowsSchedule } else { Ensure-WindowsScheduleMigration | Out-Null }
     Write-Host $Script:Text.Ready -ForegroundColor Green
     Start-Process $PanelUrl | Out-Null
 }
 
 function Start-SourceApplication {
     Write-Step $Script:Text.StartingSource
+    Invoke-Compose @("up", "-d", "--no-build", "app")
+    Wait-Panel
+    Ensure-WindowsScheduleMigration | Out-Null
+    Start-WindowsNotifier
+    Write-Host $Script:Text.Ready -ForegroundColor Green
+    Start-Process $PanelUrl | Out-Null
+}
+
+function Start-SourceBuildApplication {
+    Write-Step $Script:Text.StartingSource
     Invoke-Compose @("up", "-d", "--build", "app")
     Wait-Panel
+    Ensure-WindowsScheduleMigration | Out-Null
     Start-WindowsNotifier
     Write-Host $Script:Text.Ready -ForegroundColor Green
     Start-Process $PanelUrl | Out-Null
@@ -481,13 +599,13 @@ function Set-PendingInstallerMode([string]$Mode) {
 }
 
 function Apply-PendingInstallerMode {
-    if (-not (Test-Path -LiteralPath $PendingModePath)) { return }
+    if (-not (Test-Path -LiteralPath $PendingModePath)) { return $false }
     $mode = (Get-Content -LiteralPath $PendingModePath -Raw -Encoding ASCII).Trim()
     if ($mode -notin @("economy", "dashboard", "manual")) { throw "Invalid pending installer mode" }
     $values = if ($mode -eq "economy") {
         @{
             WINDOWS_ECONOMY_SCHEDULE = $true
-            RUN_ON_STARTUP = $true
+            RUN_ON_STARTUP = $false
             SCHEDULER_HOURS = 0
             SCHEDULER_FIXED_TIMES = "12:00,16:00,19:00"
         }
@@ -506,9 +624,9 @@ function Apply-PendingInstallerMode {
             SCHEDULER_FIXED_TIMES = ""
         }
     }
-    $payload = @{values = $values} | ConvertTo-Json -Compress
-    Invoke-RestMethod -Uri "$PanelUrl/api/config" -Method Post -ContentType "application/json" -Headers @{"X-FGC-Token" = (Get-DashboardToken)} -Body $payload -TimeoutSec 15 | Out-Null
+    Set-DashboardConfigurationValues $values
     Remove-Item -LiteralPath $PendingModePath -Force
+    return $true
 }
 
 function Invoke-ScheduledDashboardRun {
@@ -525,9 +643,11 @@ function Invoke-ScheduledDashboardRun {
 function Wait-ScheduledRun([string]$RunId) {
     if ($RunId -notmatch "^[a-f0-9]{32}$") { throw "Invalid scheduled run identifier" }
     Write-Step $Script:Text.EconomyWaiting
-    for ($attempt = 1; $attempt -le 720; $attempt++) {
+    # 45-minute application deadline plus five minutes for cancellation/cleanup.
+    for ($attempt = 1; $attempt -le 600; $attempt++) {
         $status = Get-DashboardJson "/api/status"
-        $records = @($status.history | Where-Object { $_.runId -eq $RunId })
+        $history = Get-DashboardJson "/api/history?limit=1&runId=$RunId"
+        $records = @($history.history)
         if (-not $status.running -and $records.Count -gt 0) {
             Write-Host " OK" -ForegroundColor Green
             return $true
@@ -540,8 +660,10 @@ function Wait-ScheduledRun([string]$RunId) {
 }
 
 function Wait-EconomyRun {
+    $Script:EconomySetupPending = $false
     $config = Get-DashboardJson "/api/config"
     if ($config.setup.required -and -not $config.setup.complete) {
+        $Script:EconomySetupPending = $true
         Write-Host $Script:Text.EconomySetup -ForegroundColor Yellow
         Start-Process $PanelUrl | Out-Null
         return $false
@@ -625,24 +747,14 @@ function Start-ScheduledApplication(
     [bool]$DockerWasRunning,
     [bool]$AppWasRunning
 ) {
-    # SMART WAKE CHECK
-    $smartWakeFile = Join-Path $PSScriptRoot "state\smart_wake.txt"
     $nowStr = (Get-Date).ToString("yyyy-MM-dd", [Globalization.CultureInfo]::InvariantCulture)
-    if (Test-Path -LiteralPath $smartWakeFile) {
-        $wakeDate = (Get-Content -LiteralPath $smartWakeFile -Raw).Trim()
-        if ($wakeDate -eq $nowStr) {
-            Write-Host $Script:Text.ScheduleComplete -ForegroundColor Green
-            # Docker didn't even start, simply exit to save resources
-            return
-        }
-    }
 
     Adopt-LegacyData
     Write-Step $Script:Text.Starting
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
     Start-WindowsNotifier
-    Sync-WindowsSchedule
+    Ensure-WindowsScheduleMigration | Out-Null
     $config = Get-DashboardJson "/api/config"
     if ($config.setup.required -and -not $config.setup.complete) {
         Write-Host $Script:Text.EconomySetup -ForegroundColor Yellow
@@ -654,28 +766,28 @@ function Start-ScheduledApplication(
         Write-Host $Script:Text.ScheduleComplete -ForegroundColor Green
         
         # SMART WAKE STATE UPDATE (first run after completion)
-        if (-not (Test-Path -LiteralPath "$PSScriptRoot\state")) {
-            New-Item -ItemType Directory -Path "$PSScriptRoot\state" | Out-Null
+        if (-not (Test-Path -LiteralPath $StateDirectory)) {
+            New-Item -ItemType Directory -Path $StateDirectory -Force | Out-Null
         }
-        $nowStr | Out-File -FilePath $smartWakeFile -Encoding ascii -Force
+        $nowStr | Out-File -FilePath $SmartWakePath -Encoding ascii -Force
         
         Stop-DockerAfterEconomyRun -StopApp (-not $AppWasRunning) -StopDocker (-not $DockerWasRunning) -StopNotifier (-not $AppWasRunning)
         return
     }
     if (-not $run.accepted) { throw "The scheduled run was not accepted: $($run.reason)" }
-    if (Wait-ScheduledRun ([string]$run.runId)) {
+    $completed = Wait-ScheduledRun ([string]$run.runId)
+    if ($completed) {
         # Check if the run we just finished completed all pending stores
         $postRunCheck = Invoke-ScheduledDashboardRun
         if (-not $postRunCheck.accepted -and $postRunCheck.reason -eq "already-complete") {
             # SMART WAKE STATE UPDATE (successful run)
-            if (-not (Test-Path -LiteralPath "$PSScriptRoot\state")) {
-                New-Item -ItemType Directory -Path "$PSScriptRoot\state" | Out-Null
+            if (-not (Test-Path -LiteralPath $StateDirectory)) {
+                New-Item -ItemType Directory -Path $StateDirectory -Force | Out-Null
             }
-            $nowStr | Out-File -FilePath $smartWakeFile -Encoding ascii -Force
+            $nowStr | Out-File -FilePath $SmartWakePath -Encoding ascii -Force
         }
-        
-        Stop-DockerAfterEconomyRun -StopApp (-not $AppWasRunning) -StopDocker (-not $DockerWasRunning) -StopNotifier (-not $AppWasRunning)
     }
+    Stop-DockerAfterEconomyRun -StopApp (-not $AppWasRunning) -StopDocker (-not $DockerWasRunning) -StopNotifier (-not $AppWasRunning)
 }
 
 function Start-EconomyApplication {
@@ -684,8 +796,11 @@ function Start-EconomyApplication {
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
     Start-WindowsNotifier
-    Sync-WindowsSchedule
-    if (Wait-EconomyRun) {
+    $completed = Wait-EconomyRun
+    # Incomplete onboarding is the only unattended path that deliberately
+    # keeps the dashboard available. A failed or timed-out run still releases
+    # every resource this legacy economy action started.
+    if ($completed -or -not $Script:EconomySetupPending) {
         Stop-DockerAfterEconomyRun
     }
 }
@@ -693,20 +808,24 @@ function Start-EconomyApplication {
 function Update-Application {
     $latest = Get-LatestReleaseTag
     $current = Get-EnvironmentValue "CLAIMER_TAG"
-    if ($current -eq $latest) { Write-Host $Script:Text.UpToDate -ForegroundColor Green; return }
+    if ($current -eq $latest) {
+        if (Test-PanelReady) { Ensure-WindowsScheduleMigration | Out-Null }
+        Write-Host $Script:Text.UpToDate -ForegroundColor Green
+        return
+    }
     if (-not (Confirm-DefaultYes ($Script:Text.UpdatePrompt -f $current, $latest))) { return }
     Write-Step ($Script:Text.Updating -f $latest)
     Set-EnvironmentValue "CLAIMER_TAG" $latest
     Invoke-Compose @("pull", "app")
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
+    Ensure-WindowsScheduleMigration | Out-Null
     Start-WindowsNotifier
-    Sync-WindowsSchedule
     Start-Process $PanelUrl | Out-Null
 }
 
 function Invoke-ClaimerControl(
-    [ValidateSet("start", "stop", "economy", "scheduled", "sync-schedule", "configure-economy", "configure-dashboard", "configure-manual", "source", "update", "uninstall", "check")]
+    [ValidateSet("start", "stop", "economy", "scheduled", "sync-schedule", "configure-economy", "configure-dashboard", "configure-manual", "source", "source-build", "update", "uninstall", "check")]
     [string]$RequestedAction = $Action
 ) {
     try {
@@ -715,13 +834,28 @@ function Invoke-ClaimerControl(
             throw "Required launcher files are missing"
         }
         if ($RequestedAction -eq "check") { Write-Host $Script:Text.CheckOk -ForegroundColor Green; return 0 }
+        if ($RequestedAction -eq "scheduled" -and (Test-SmartWakeCompleteToday)) {
+            Write-Host $Script:Text.ScheduleComplete -ForegroundColor Green
+            return 0
+        }
+        if ($RequestedAction -in @("start", "source") -and (Test-PanelReady)) {
+            if ($RequestedAction -eq "start") {
+                $configurationChanged = Apply-PendingInstallerMode
+                if ($configurationChanged) { Sync-WindowsSchedule } else { Ensure-WindowsScheduleMigration | Out-Null }
+            } else {
+                Ensure-WindowsScheduleMigration | Out-Null
+            }
+            Start-WindowsNotifier
+            Start-Process $PanelUrl | Out-Null
+            return 0
+        }
         if ($RequestedAction -eq "configure-economy") {
             if ($InstallTag) {
                 if ($InstallTag -notmatch "^(latest|v\d+\.\d+\.\d+)$") { throw "Invalid installer image tag" }
                 Set-EnvironmentValue "CLAIMER_TAG" $InstallTag
             }
             Set-EnvironmentValue "WINDOWS_ECONOMY_SCHEDULE" "true"
-            Set-EnvironmentValue "RUN_ON_STARTUP" "true"
+            Set-EnvironmentValue "RUN_ON_STARTUP" "false"
             Set-PendingInstallerMode "economy"
             return 0
         }
@@ -769,6 +903,7 @@ function Invoke-ClaimerControl(
         elseif ($RequestedAction -eq "economy") { Write-OtterAscii; Start-EconomyApplication }
         elseif ($RequestedAction -eq "scheduled") { Write-OtterAscii; Start-ScheduledApplication -DockerWasRunning $dockerWasRunning -AppWasRunning $appWasRunning }
         elseif ($RequestedAction -eq "source") { Write-OtterAscii; Start-SourceApplication }
+        elseif ($RequestedAction -eq "source-build") { Write-OtterAscii; Start-SourceBuildApplication }
         elseif ($RequestedAction -eq "uninstall") {
             Stop-WindowsNotifier
             Invoke-Compose @("down")

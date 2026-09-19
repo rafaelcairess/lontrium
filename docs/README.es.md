@@ -38,7 +38,7 @@
 - Reclama juegos, recursos y recompensas elegibles en las tiendas seleccionadas.
 - Recoge monedas diarias de AliExpress y Shopee y muestra el resultado y el saldo.
 - Informa el resultado real de cada ejecución, no solo una cantidad genérica.
-- En Windows usa tareas nativas al iniciar sesión y a las 12:00, 16:00 y 19:00, y después libera la memoria de Docker/WSL.
+- En Windows usa tareas nativas en los horarios elegidos (12:00, 16:00 y 19:00 por defecto), recupera horarios perdidos y después libera la memoria de Docker/WSL.
 - No repite tiendas ya completadas ese día; los horarios posteriores solo reintentan fallos, login/CAPTCHA o tiendas aún no ejecutadas.
 - Abre un navegador visual cuando una tienda requiere inicio de sesión o confirmación manual.
 - Mantiene el panel, la configuración, la base de datos y las sesiones en tu computadora.
@@ -143,7 +143,7 @@ El inicio de sesión en el navegador es la opción recomendada, por lo que el as
 
 Al actualizar una instalación antigua, el launcher puede preguntar si debe reutilizar cuentas y sesiones existentes. Elige **Sí**, salvo que quieras un perfil limpio. Se sustituye el contenedor, pero se conserva el volumen persistente seleccionado.
 
-El acceso directo normal sigue abriendo el panel cuando quieras. En modo económico automático, Windows inicia Lontrium al entrar y en los horarios configurados (12:00, 16:00 y 19:00 por defecto). Una tienda completada con éxito no vuelve a ejecutarse ese día; solo las pendientes se reintentan después. Docker, el contenedor y el notificador se cierran únicamente si la tarea los inició. Ningún proceso de Lontrium queda residente entre horarios. Si Docker o el panel ya estaban abiertos, permanecen abiertos. La desinstalación elimina solo la tarea de Lontrium y conserva cuentas y sesiones salvo que se solicite explícitamente borrar los datos locales.
+El acceso directo normal sigue abriendo el panel cuando quieras. En modo económico automático, Windows inicia Lontrium en los horarios configurados (12:00, 16:00 y 19:00 por defecto) y recupera un horario perdido cuando vuelve el PC. Una tienda completada con éxito no vuelve a ejecutarse ese día; solo las pendientes se reintentan después. Docker, el contenedor y el notificador se cierran únicamente si la tarea los inició. Los paneles abiertos manualmente también se cierran tras 30 minutos sin actividad real. Ningún proceso de Lontrium queda residente entre horarios. Si Docker o el panel ya estaban abiertos antes de una tarea programada, permanecen abiertos. La desinstalación elimina solo la tarea de Lontrium y conserva cuentas y sesiones salvo que se solicite explícitamente borrar los datos locales.
 
 ## ¿Necesitas ayuda?
 

@@ -33,7 +33,8 @@ def test_dashboard_history_restores_last_store_state():
     store = next(item for item in payload["stores"] if item["key"] == "aliexpress")
 
     assert payload["finishedAt"] == record["finishedAt"]
-    assert payload["history"] == [record]
+    assert "history" not in payload
+    assert restored.history() == [record]
     assert store["lastRun"] == record["finishedAt"]
     assert store["details"]["claimedCoins"] == 15
 

@@ -8,6 +8,7 @@ const setupSteps = ['Language', 'Stores', 'Security', 'Accounts', 'Schedule', 'R
 let translations = {};
 let currentLocale = 'en';
 let latestStatus = null;
+let latestHistory = [];
 let latestConfig = null;
 let latestUpdate = null;
 let activeSettingsSection = 'section.stores';
@@ -93,9 +94,9 @@ function relativeTime(value) {
   return formatter.format(seconds, 'second');
 }
 
-function successfulStoresToday(status) {
+function successfulStoresToday(history) {
   const today = new Date().toDateString();
-  return new Set((status.history || [])
+  return new Set((history || [])
     .filter(record => {
       if (record.state !== 'success' || new Date(record.finishedAt).toDateString() !== today) return false;
       const details = record.details;
@@ -261,12 +262,12 @@ function createAddStoreRow(availableCount) {
   return button;
 }
 
-function renderHistory(status) {
+function renderHistory(history) {
   const container = document.querySelector('#historyList');
-  const allRecords = Array.isArray(status.history) ? status.history : [];
+  const allRecords = Array.isArray(history) ? history : [];
   const limit = showAllHistory ? 50 : 5;
   const records = allRecords.slice(0, limit);
-  const stores = new Map(status.stores.map(store => [store.key, store]));
+  const stores = new Map((latestStatus?.stores || []).map(store => [store.key, store]));
   if (!records.length) {
     const empty = document.createElement('p');
     empty.className = 'history-empty';
@@ -311,7 +312,7 @@ function renderHistory(status) {
     seeMoreBtn.textContent = t('history.seeMore', {count: allRecords.length - 5});
     seeMoreBtn.addEventListener('click', () => {
       showAllHistory = true;
-      renderHistory(latestStatus);
+      renderHistory(latestHistory);
     });
     container.append(seeMoreBtn);
   }
@@ -320,7 +321,7 @@ function renderHistory(status) {
 function renderStatus(status) {
   latestStatus = status;
   const enabledStores = status.stores.filter(store => store.enabled);
-  const completed = successfulStoresToday(status);
+  const completed = successfulStoresToday(latestHistory);
   const scheduled = status.schedule?.hostManaged && status.schedule?.economyEnabled;
   storeGrid.replaceChildren(...enabledStores.map(store => createStoreRow(store, status.running, scheduled && !completed.has(store.key))), createAddStoreRow(status.stores.length - enabledStores.length));
   document.querySelector('#activeStoreCount').textContent = String(enabledStores.length);
@@ -332,12 +333,30 @@ function renderStatus(status) {
   document.querySelector('#runLabel').textContent = t(status.running ? 'dashboard.running' : 'dashboard.ready');
   document.querySelector('#runPill').classList.toggle('running', status.running);
   document.querySelector('#runAllButton').disabled = status.running || enabledStores.length === 0;
-  renderHistory(status);
+  renderHistory(latestHistory);
 }
 
 async function refreshStatus(silent = true) {
-  try { renderStatus(await api('/api/status')); }
+  try {
+    const wasRunning = Boolean(latestStatus?.running);
+    const status = await api('/api/status');
+    if (wasRunning && !status.running) {
+      latestHistory = (await api('/api/history?limit=250')).history || [];
+    }
+    renderStatus(status);
+  }
   catch (error) { if (!silent) showToast(error.message, true); }
+}
+
+async function refreshDashboard(silent = true) {
+  try {
+    const [status, history] = await Promise.all([
+      api('/api/status'),
+      api('/api/history?limit=250'),
+    ]);
+    latestHistory = history.history || [];
+    renderStatus(status);
+  } catch (error) { if (!silent) showToast(error.message, true); }
 }
 
 function statusPollDelay() {
@@ -1004,8 +1023,14 @@ function launchUpdater() {
 
 async function initialise() {
   await setLocale(detectedLocale(), false);
-  latestStatus = await api('/api/status');
-  latestConfig = await api('/api/config');
+  const [status, history, config] = await Promise.all([
+    api('/api/status'),
+    api('/api/history?limit=250'),
+    api('/api/config'),
+  ]);
+  latestStatus = status;
+  latestHistory = history.history || [];
+  latestConfig = config;
   setupValues = {...latestConfig.values, STORES: [...latestConfig.values.STORES]};
   setupScheduleMode = inferSetupScheduleMode();
   renderStatus(latestStatus);
@@ -1031,7 +1056,7 @@ document.querySelector('#vncLink').href = `${location.protocol}//${location.host
 document.querySelector('#languageSelect').addEventListener('change', event => setLocale(event.target.value));
 document.querySelector('#runAllButton').addEventListener('click', () => runStores());
 document.querySelector('#stopAllButton').addEventListener('click', stopAll);
-document.querySelector('#refreshButton').addEventListener('click', () => refreshStatus(false));
+document.querySelector('#refreshButton').addEventListener('click', () => refreshDashboard(false));
 document.querySelector('#settingsButton').addEventListener('click', openSettings);
 document.querySelector('#closeSettings').addEventListener('click', closeSettings);
 document.querySelector('#drawerBackdrop').addEventListener('click', closeSettings);
@@ -1043,6 +1068,17 @@ document.querySelector('#storeManagerForm').addEventListener('submit', saveStore
 document.querySelector('#setupBack').addEventListener('click', previousSetupStep);
 document.querySelector('#setupNext').addEventListener('click', nextSetupStep);
 document.querySelector('#setupExit').addEventListener('click', closeOnboardingPreview);
+
+let lastActivitySent = 0;
+function recordActivity() {
+  const now = Date.now();
+  if (now - lastActivitySent < 60000) return;
+  lastActivitySent = now;
+  void api('/api/activity', {method: 'POST', body: '{}'}).catch(() => {});
+}
+for (const eventName of ['pointerdown', 'keydown', 'touchstart']) {
+  document.addEventListener(eventName, recordActivity, {passive: true});
+}
 document.querySelector('#updateButton').addEventListener('click', launchUpdater);
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && document.querySelector('#onboarding').hidden) { closeStoreManager(); closeSettings(); }

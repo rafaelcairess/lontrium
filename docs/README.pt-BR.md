@@ -38,7 +38,7 @@
 - Resgata jogos, recursos e recompensas elegíveis nas lojas selecionadas.
 - Coleta moedas diárias do AliExpress e da Shopee e mostra o resultado e o saldo.
 - Informa o resultado real de cada execução, não apenas uma contagem genérica.
-- No Windows, usa tarefas nativas ao entrar no sistema, às 12:00, 16:00 e 19:00, liberando depois a memória do Docker/WSL.
+- No Windows, usa tarefas nativas nos horários escolhidos (12:00, 16:00 e 19:00 por padrão), recupera horários perdidos e libera depois a memória do Docker/WSL.
 - Não repete lojas já concluídas no dia; horários posteriores tentam somente falhas, login/CAPTCHA ou lojas ainda não executadas.
 - Abre um navegador visual quando uma loja exige login ou confirmação manual.
 - Mantém painel, configurações, banco e sessões do navegador no seu computador.
@@ -86,7 +86,7 @@ Você pode rever toda a introdução depois em **Configurações → Introduçã
 ## Como funciona
 
 ```text
-Agendador do Windows (login + horários configurados)
+Agendador do Windows (horários configurados + recuperação de execução perdida)
       ├─ inicia Docker e container somente quando necessário
       ├─ executa apenas lojas pendentes no dia local
       └─ encerra somente os recursos que ele próprio iniciou
@@ -143,7 +143,7 @@ O login pelo navegador é a opção recomendada, então o assistente não pede s
 
 Ao atualizar uma instalação antiga, o launcher pode perguntar se deve reutilizar contas e sessões existentes. Escolha **Sim**, a menos que queira começar com um perfil limpo. O container é substituído, mas o volume persistente selecionado é preservado.
 
-O atalho normal continua abrindo o painel quando você quiser. No modo econômico automático, o Windows chama o Lontrium ao entrar no sistema e nos horários configurados (12:00, 16:00 e 19:00 por padrão). Uma loja concluída com sucesso não roda novamente naquele dia; só as pendentes voltam nos horários seguintes. Docker, container e notificador são encerrados depois somente quando foram iniciados por essa tarefa. Nenhum processo do Lontrium fica residente entre horários. Se o Docker ou o painel já estavam abertos, permanecem abertos. A desinstalação remove apenas a tarefa do Lontrium e preserva contas e sessões, salvo exclusão explícita dos dados locais.
+O atalho normal continua abrindo o painel quando você quiser. No modo econômico automático, o Windows chama o Lontrium nos horários configurados (12:00, 16:00 e 19:00 por padrão) e recupera um horário perdido quando o PC volta. Uma loja concluída com sucesso não roda novamente naquele dia; só as pendentes voltam nos horários seguintes. Docker, container e notificador são encerrados depois somente quando foram iniciados por essa tarefa. Painéis abertos manualmente também encerram após 30 minutos sem atividade real. Nenhum processo do Lontrium fica residente entre horários. Se Docker ou painel já estavam abertos antes de uma tarefa agendada, permanecem abertos. A desinstalação remove apenas a tarefa do Lontrium e preserva contas e sessões, salvo exclusão explícita dos dados locais.
 
 ## Precisa de ajuda?
 

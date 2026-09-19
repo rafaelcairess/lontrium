@@ -21,7 +21,7 @@ test('browser language is used when there is no saved preference', () => {
 
 test('setup schedule presets map to validated backend settings', () => {
   assert.deepEqual(setupScheduleValues('economy', '08:30,16:00,19:00'), {
-    SCHEDULER_HOURS: 0, SCHEDULER_FIXED_TIMES: '08:30,16:00,19:00', RUN_ON_STARTUP: true,
+    SCHEDULER_HOURS: 0, SCHEDULER_FIXED_TIMES: '08:30,16:00,19:00', RUN_ON_STARTUP: false,
     WINDOWS_ECONOMY_SCHEDULE: true,
   });
   assert.deepEqual(setupScheduleValues('dashboard', '21:15'), {

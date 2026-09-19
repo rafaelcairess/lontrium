@@ -5,6 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 from threading import Lock
+from time import monotonic
 from uuid import uuid4
 
 
@@ -162,6 +163,7 @@ class DashboardState:
         self._store_runs: dict[str, tuple[str, str]] = {}
         self._history: list[dict] = []
         self._manual_actions: dict[str, dict] = {}
+        self._last_activity = monotonic()
         self._stores = {
             key: {
                 **meta,
@@ -247,6 +249,15 @@ class DashboardState:
         with self._lock:
             return self._run_id
 
+    def mark_activity(self) -> None:
+        """Record real dashboard interaction; polling deliberately does not call this."""
+        with self._lock:
+            self._last_activity = monotonic()
+
+    def idle_seconds(self) -> float:
+        with self._lock:
+            return max(0.0, monotonic() - self._last_activity)
+
     def begin_store(self, key: str) -> None:
         with self._lock:
             if key in self._stores:
@@ -309,8 +320,12 @@ class DashboardState:
             if not self._running:
                 self._finished_at = _now()
 
-    def cancel_run(self) -> list[dict]:
-        """Mark every queued/running store as cancelled and make the UI idle."""
+    def cancel_run(
+        self,
+        message: str = "Cancelado pelo usuário",
+        message_key: str = "status.cancelled",
+    ) -> list[dict]:
+        """Mark every queued/running store as failed and make the UI idle."""
         with self._lock:
             was_running = self._running
             finished_at = _now()
@@ -323,8 +338,8 @@ class DashboardState:
                 )
                 store.update(
                     state="error",
-                    message="Cancelado pelo usuário",
-                    messageKey="status.cancelled",
+                    message=message,
+                    messageKey=message_key,
                     lastRun=finished_at,
                     details=None,
                 )
@@ -332,8 +347,8 @@ class DashboardState:
                     "runId": run_id,
                     "store": key,
                     "state": "error",
-                    "message": "Cancelado pelo usuário",
-                    "messageKey": "status.cancelled",
+                    "message": message,
+                    "messageKey": message_key,
                     "startedAt": started_at,
                     "finishedAt": finished_at,
                     "details": None,
@@ -379,13 +394,20 @@ class DashboardState:
                 "startedAt": self._started_at,
                 "finishedAt": self._finished_at,
                 "stores": stores,
-                "history": deepcopy(self._history),
             }
         enabled_set = set(enabled)
         for store in payload["stores"]:
             store["enabled"] = store["key"] in enabled_set
         payload["schedule"] = schedule or {}
         return payload
+
+    def history(self, *, limit: int = 250, run_id: str | None = None) -> list[dict]:
+        """Return a bounded privacy-safe history view, optionally for one run."""
+        with self._lock:
+            records = self._history
+            if run_id is not None:
+                records = [record for record in records if record.get("runId") == run_id]
+            return deepcopy(records[:limit])
 
 
 def _in_utc_window(value, start: datetime, end: datetime) -> bool:

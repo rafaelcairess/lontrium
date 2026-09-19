@@ -753,7 +753,7 @@ class PrimeGamingClaimer(BaseClaimer):
                         // Known slugs: epic, gog, legacy, aga (amazon)
                         let platform = '';
                         if (detailUrl) {{
-                            const slugMatch = detailUrl.match(/\/claims\/(.+?)\/dp\//);
+                            const slugMatch = detailUrl.match(/\\/claims\\/(.+?)\\/dp\\//);
                             if (slugMatch) {{
                                 const slug = slugMatch[1].toLowerCase();
                                 const platformMap = {{

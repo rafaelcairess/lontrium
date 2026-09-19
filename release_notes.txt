@@ -1,0 +1,15 @@
+### Added
+- A guarded **Stop all** dashboard action cancels active and queued stores, closes their automation browsers and asks the local Windows helper to release Lontrium's container and Docker resources.
+- **Smart Wake:** Windows Task Scheduler will now read `state/smart_wake.txt` and abort waking up Docker if the daily quota has been met, saving background resources.
+- `update-local.cmd` helper script added for 1-click local environment testing and updates.
+- Added ASCII art (Otter) and LONTRIUM CONTROL branding to the PowerShell installer.
+- Support for automatically claiming free base games when a Free-to-Keep DLC is promoted on Steam.
+
+### Changed
+- **Economy Mode** is now enabled by default.
+- Ignore Docker Compose image pull failures during local installer startup.
+- Improved the UI layout and spacing of the Schedule configuration in the dashboard.
+- Removed outdated Shopee manual login instructions from localization files.
+
+### Fixed
+- A store stuck in a long browser retry no longer leaves the dashboard without a manual escape route. Cancelled stores remain pending for a later scheduled retry.

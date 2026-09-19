@@ -17,7 +17,7 @@ services:
     tty: true
     stdin_open: true
     ports:
-      - "${NOVNC_PORT:-7080}:7080"
+      - "127.0.0.1:${NOVNC_PORT:-7080}:7080"
       - "127.0.0.1:${GUI_PORT:-8080}:8080"
     volumes:
       - claimer_data:/fgc/data
@@ -28,7 +28,10 @@ services:
       WINDOWS_HOST_SCHEDULER: "true"
       WINDOWS_ECONOMY_SCHEDULE: "${WINDOWS_ECONOMY_SCHEDULE:-true}"
       WINDOWS_WAKE_ON_AC: "${WINDOWS_WAKE_ON_AC:-true}"
-      RUN_ON_STARTUP: "${RUN_ON_STARTUP:-true}"
+      STORE_RUN_TIMEOUT: "${STORE_RUN_TIMEOUT:-900}"
+      CLAIM_RUN_TIMEOUT: "${CLAIM_RUN_TIMEOUT:-2700}"
+      GUI_IDLE_TIMEOUT: "${GUI_IDLE_TIMEOUT:-1800}"
+      RUN_ON_STARTUP: "${RUN_ON_STARTUP:-false}"
       SCHEDULER_HOURS: "${SCHEDULER_HOURS:-0}"
       SCHEDULER_FIXED_TIMES: "${SCHEDULER_FIXED_TIMES:-12:00,16:00,19:00}"
       NOTIFY_UPDATES: "true"

@@ -26,7 +26,7 @@
     return {
       SCHEDULER_HOURS: 0,
       SCHEDULER_FIXED_TIMES: safeMode === 'economy' ? safeTimes : '',
-      RUN_ON_STARTUP: safeMode !== 'manual',
+      RUN_ON_STARTUP: safeMode === 'dashboard',
       WINDOWS_ECONOMY_SCHEDULE: safeMode === 'economy',
     };
   }

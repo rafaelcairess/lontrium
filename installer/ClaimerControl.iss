@@ -35,17 +35,17 @@ Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"; InfoBeforeFile: "sec
 
 [CustomMessages]
 en.AutoStartTask=Start Lontrium Control when I sign in to Windows
-en.EconomyModeTask=Automatic economy mode — run at sign-in, 12:00, 16:00 and 19:00, then stop Docker
+en.EconomyModeTask=Automatic economy mode — run at 12:00, 16:00 and 19:00, catch up missed times, then stop Docker
 en.DashboardModeTask=Dashboard mode — keep Lontrium Control and Docker running
 en.AutomationGroup=Automation
 en.StartAfterInstall=Start Lontrium Control
 ptbr.AutoStartTask=Iniciar o Lontrium Control ao entrar no Windows
-ptbr.EconomyModeTask=Modo econômico automático — executar ao entrar, 12:00, 16:00 e 19:00, depois fechar o Docker
+ptbr.EconomyModeTask=Modo econômico automático — executar às 12:00, 16:00 e 19:00, recuperar horários perdidos e fechar o Docker
 ptbr.DashboardModeTask=Modo painel — manter o Lontrium Control e o Docker ligados
 ptbr.AutomationGroup=Automação
 ptbr.StartAfterInstall=Iniciar o Lontrium Control
 es.AutoStartTask=Iniciar Lontrium Control al entrar en Windows
-es.EconomyModeTask=Modo económico automático — ejecutar al entrar, 12:00, 16:00 y 19:00, y cerrar Docker
+es.EconomyModeTask=Modo económico automático — ejecutar a las 12:00, 16:00 y 19:00, recuperar horarios perdidos y cerrar Docker
 es.DashboardModeTask=Modo panel — mantener Lontrium Control y Docker activos
 es.AutomationGroup=Automatización
 es.StartAfterInstall=Iniciar Lontrium Control

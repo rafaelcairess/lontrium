@@ -10,9 +10,17 @@ Describe "Lontrium Control launcher flow" {
         Mock Start-EconomyApplication {}
         Mock Start-ScheduledApplication {}
         Mock Start-SourceApplication {}
+        Mock Start-SourceBuildApplication {}
         Mock Install-DockerDesktop {}
         Mock Test-DockerReady { $false }
         Mock Test-LontriumContainerRunning { $false }
+        Mock Test-PanelReady { $false }
+        Mock Test-SmartWakeCompleteToday { $false }
+        Mock Apply-PendingInstallerMode { $false }
+        Mock Ensure-WindowsScheduleMigration { $false }
+        Mock Update-ScheduleConfigurationSignature { $false }
+        Mock Sync-WindowsSchedule {}
+        Mock Start-Process {}
     }
 
     It "starts directly when Docker is installed" {
@@ -49,6 +57,26 @@ Describe "Lontrium Control launcher flow" {
         Assert-MockCalled Start-Application -Times 0 -Exactly -Scope It
     }
 
+    It "opens an already running dashboard without touching Docker" {
+        Mock Test-PanelReady { $true }
+        Mock Test-DockerCommandAvailable { throw "Docker must not be inspected" }
+        Mock Start-WindowsNotifier {}
+        $result = Invoke-ClaimerControl -RequestedAction start
+        if ($result -ne 0) { throw "Expected launcher exit code 0, got $result" }
+        Assert-MockCalled Wait-DockerDesktop -Times 0 -Exactly -Scope It
+        Assert-MockCalled Start-Application -Times 0 -Exactly -Scope It
+        Assert-MockCalled Apply-PendingInstallerMode -Times 1 -Exactly -Scope It
+        Assert-MockCalled Start-Process -Times 1 -Exactly -Scope It -ParameterFilter { $FilePath -eq "http://127.0.0.1:8080" }
+    }
+
+    It "uses an explicit build action for local source" {
+        Mock Test-DockerCommandAvailable { $true }
+        $result = Invoke-ClaimerControl -RequestedAction source-build
+        if ($result -ne 0) { throw "Expected launcher exit code 0, got $result" }
+        Assert-MockCalled Start-SourceBuildApplication -Times 1 -Exactly -Scope It
+        Assert-MockCalled Start-SourceApplication -Times 0 -Exactly -Scope It
+    }
+
     It "uses economy mode for unattended Windows startup" {
         Mock Test-DockerCommandAvailable { $true }
         $result = Invoke-ClaimerControl -RequestedAction economy
@@ -66,6 +94,15 @@ Describe "Lontrium Control launcher flow" {
         Assert-MockCalled Start-ScheduledApplication -Times 1 -Exactly -Scope It -ParameterFilter {
             $DockerWasRunning -and $AppWasRunning
         }
+    }
+
+    It "skips a completed day before inspecting or starting Docker" {
+        Mock Test-SmartWakeCompleteToday { $true }
+        Mock Test-DockerCommandAvailable { throw "Docker must not be inspected for a completed day" }
+        $result = Invoke-ClaimerControl -RequestedAction scheduled
+        if ($result -ne 0) { throw "Expected launcher exit code 0, got $result" }
+        Assert-MockCalled Wait-DockerDesktop -Times 0 -Exactly -Scope It
+        Assert-MockCalled Start-ScheduledApplication -Times 0 -Exactly -Scope It
     }
 }
 
@@ -137,12 +174,29 @@ Describe "Application identity" {
         if (-not (Test-Path -LiteralPath "$PSScriptRoot/../installer/Lontrium.ico")) { throw "Installer icon is missing" }
     }
 
+    It "keeps normal opens separate from pulls and source rebuilds" {
+        $launcher = Get-Content -LiteralPath "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Raw
+        $normal = [regex]::Match($launcher, 'function Start-Application \{(?<body>.*?)\r?\n\}', 'Singleline').Groups['body'].Value
+        $source = [regex]::Match($launcher, 'function Start-SourceApplication \{(?<body>.*?)\r?\n\}', 'Singleline').Groups['body'].Value
+        $rebuild = [regex]::Match($launcher, 'function Start-SourceBuildApplication \{(?<body>.*?)\r?\n\}', 'Singleline').Groups['body'].Value
+        if ($normal -match '"pull"') { throw "Normal open must not pull" }
+        if ($source -match '"--build"') { throw "Source open must not rebuild" }
+        if ($source -notmatch '"--no-build"') { throw "Source open must explicitly disable implicit builds" }
+        if ($rebuild -notmatch '"--build"') { throw "Explicit source build action is missing" }
+    }
+
     It "packages and starts the native Windows notification helper" {
         $installer = Get-Content -LiteralPath "$PSScriptRoot/../installer/ClaimerControl.iss" -Raw
         $launcher = Get-Content -LiteralPath "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Raw
         if ($installer -notmatch 'Lontrium\.Notifier\.exe') { throw "Native notifier is not packaged" }
         if ($installer -notmatch 'AppUserModelID: "RafaelCaires\.LontriumControl"') { throw "Toast AppUserModelID is missing" }
         if ($launcher -notmatch 'Start-WindowsNotifier') { throw "Launcher does not start the notifier" }
+        if ($launcher -notmatch 'windows-notifier\\bin\\Debug\\net48\\Lontrium\.Notifier\.exe') {
+            throw "Source checkouts cannot find the locally built notification helper"
+        }
+        if ($launcher -notmatch '\$NotifierPaths -contains \$_\.Path') {
+            throw "Stop all cannot close every allowed notification-helper build"
+        }
     }
 
     It "registers Lontrium updates and preserves the former protocol alias" {
@@ -195,6 +249,18 @@ Describe "Application identity" {
             throw "The packaged container could restart itself and keep Docker resident"
         }
     }
+
+    It "publishes the dashboard and browser only on IPv4 loopback" {
+        foreach ($path in @("docker-compose.yml", "installer/docker-compose.yml")) {
+            $compose = Get-Content -LiteralPath "$PSScriptRoot/../$path" -Raw
+            if ($compose -notmatch '127\.0\.0\.1:\$\{NOVNC_PORT:-7080\}:7080') {
+                throw "$path exposes noVNC beyond loopback"
+            }
+            if ($compose -notmatch '127\.0\.0\.1:\$\{GUI_PORT:-8080\}:8080') {
+                throw "$path exposes the dashboard beyond loopback"
+            }
+        }
+    }
 }
 
 Describe "Windows Task Scheduler automation" {
@@ -213,17 +279,71 @@ Describe "Windows Task Scheduler automation" {
         }
         Mock Unregister-ScheduledTask {}
         Mock Register-ScheduledTask {}
+        Mock Get-ScheduledTask { $null }
+        Mock Update-ScheduleConfigurationSignature { $false }
+        Mock Set-DashboardConfigurationValues {}
     }
 
-    It "registers logon and three daily triggers without overlapping runs" {
+    It "registers three daily catch-up triggers without a logon run" {
         Sync-WindowsSchedule
+        Assert-MockCalled Set-DashboardConfigurationValues -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Values.RUN_ON_STARTUP -eq $false
+        }
         Assert-MockCalled Register-ScheduledTask -Times 1 -Exactly -Scope It -ParameterFilter {
             $TaskName -eq "Lontrium Control - Automatic Collection" -and
-            @($Trigger).Count -eq 4 -and
+            @($Trigger).Count -eq 3 -and
             $Settings.StartWhenAvailable -and
             $Settings.WakeToRun -and
             [string]$Settings.MultipleInstances -eq "IgnoreNew" -and
             $Action.Arguments -match '-Action scheduled'
+        }
+        $launcher = Get-Content -LiteralPath "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Raw
+        if ($launcher -notmatch 'ExecutionTimeLimit\s*=\s*\(New-TimeSpan -Hours 1\)') {
+            throw "The external scheduled-task limit is not one hour"
+        }
+    }
+
+    It "replaces a legacy logon task with the signed economy schedule" {
+        Mock Get-ScheduledTask { [pscustomobject]@{Description = "Starts Lontrium only when an automatic collection is due."} }
+        Sync-WindowsSchedule
+        Assert-MockCalled Unregister-ScheduledTask -Times 1 -Exactly -Scope It
+        Assert-MockCalled Register-ScheduledTask -Times 1 -Exactly -Scope It -ParameterFilter {
+            @($Trigger).Count -eq 3 -and $Description -match 'Config:[A-F0-9]{64}$'
+        }
+    }
+
+    It "does not recreate an identical task" {
+        $script:registeredDescription = $null
+        Mock Get-ScheduledTask {
+            if ($script:registeredDescription) { [pscustomobject]@{Description = $script:registeredDescription} } else { $null }
+        }
+        Mock Register-ScheduledTask { $script:registeredDescription = $Description }
+        Sync-WindowsSchedule
+        Sync-WindowsSchedule
+        Assert-MockCalled Register-ScheduledTask -Times 1 -Exactly -Scope It
+        Assert-MockCalled Unregister-ScheduledTask -Times 0 -Exactly -Scope It
+    }
+
+    It "migrates a legacy task once" {
+        Mock Get-ScheduledTask { [pscustomobject]@{Description = "Starts Lontrium only when an automatic collection is due."} }
+        Mock Sync-WindowsSchedule {}
+        $migrated = Ensure-WindowsScheduleMigration
+        if (-not $migrated) { throw "Legacy task was not detected" }
+        Assert-MockCalled Sync-WindowsSchedule -Times 1 -Exactly -Scope It
+    }
+
+    It "does not resync a signed task during a normal open" {
+        Mock Get-ScheduledTask { [pscustomobject]@{Description = "Starts Lontrium only when an automatic collection is due. Config:$('A' * 64)"} }
+        Mock Sync-WindowsSchedule {}
+        $migrated = Ensure-WindowsScheduleMigration
+        if ($migrated) { throw "A signed task must already be considered migrated" }
+        Assert-MockCalled Sync-WindowsSchedule -Times 0 -Exactly -Scope It
+    }
+
+    It "includes the selected stores in the completion-marker signature" {
+        $launcher = Get-Content -LiteralPath "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Raw
+        if ($launcher -notmatch '"stores=\$\(\$stores -join '',''\)"') {
+            throw "Selected stores are missing from the completion-marker signature"
         }
     }
 
@@ -231,6 +351,32 @@ Describe "Windows Task Scheduler automation" {
         Remove-WindowsSchedule
         Assert-MockCalled Unregister-ScheduledTask -Times 1 -Exactly -Scope It -ParameterFilter {
             $TaskName -eq "Lontrium Control - Automatic Collection"
+        }
+    }
+}
+
+Describe "Economy completion marker" {
+    BeforeAll {
+        . "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Action start -Language en
+    }
+
+    It "clears the completed-day marker only when relevant configuration changes" {
+        $state = Join-Path $TestDrive "schedule-state"
+        New-Item -ItemType Directory -Path $state | Out-Null
+        $signature = "A" * 64
+        Set-Content -LiteralPath (Join-Path $state "schedule_config.sha256") -Value $signature -Encoding ASCII
+        Set-Content -LiteralPath (Join-Path $state "smart_wake.txt") -Value "2026-09-19" -Encoding ASCII
+
+        $changed = Update-ScheduleConfigurationSignature $signature $state
+        if ($changed) { throw "An identical configuration was reported as changed" }
+        if (-not (Test-Path -LiteralPath (Join-Path $state "smart_wake.txt"))) {
+            throw "An ordinary open cleared the completed-day marker"
+        }
+
+        $changed = Update-ScheduleConfigurationSignature ("B" * 64) $state
+        if (-not $changed) { throw "A configuration change was not detected" }
+        if (Test-Path -LiteralPath (Join-Path $state "smart_wake.txt")) {
+            throw "A changed store or schedule did not clear the completed-day marker"
         }
     }
 }
@@ -247,6 +393,7 @@ Describe "Scheduled collection ownership" {
         Mock Wait-Panel {}
         Mock Start-WindowsNotifier {}
         Mock Sync-WindowsSchedule {}
+        Mock Ensure-WindowsScheduleMigration { $false }
         Mock Get-DashboardJson { [pscustomobject]@{setup = [pscustomobject]@{required = $true; complete = $true}} }
         Mock Invoke-ScheduledDashboardRun { [pscustomobject]@{accepted = $true; runId = ("a" * 32); stores = @("epic")} }
         Mock Wait-ScheduledRun { $true }
@@ -268,6 +415,14 @@ Describe "Scheduled collection ownership" {
         }
     }
 
+    It "releases owned resources after an external run timeout" {
+        Mock Wait-ScheduledRun { $false }
+        Start-ScheduledApplication -DockerWasRunning $false -AppWasRunning $false
+        Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It -ParameterFilter {
+            $StopApp -and $StopDocker -and $StopNotifier
+        }
+    }
+
     It "opens setup and leaves resources available when onboarding is incomplete" {
         Mock Get-DashboardJson { [pscustomobject]@{setup = [pscustomobject]@{required = $true; complete = $false}} }
         Start-ScheduledApplication -DockerWasRunning $false -AppWasRunning $false
@@ -276,6 +431,11 @@ Describe "Scheduled collection ownership" {
         }
         Assert-MockCalled Invoke-ScheduledDashboardRun -Times 0 -Exactly -Scope It
         Assert-MockCalled Stop-DockerAfterEconomyRun -Times 0 -Exactly -Scope It
+    }
+
+    It "migrates a legacy scheduled task during the first post-upgrade run" {
+        Start-ScheduledApplication -DockerWasRunning $false -AppWasRunning $false
+        Assert-MockCalled Ensure-WindowsScheduleMigration -Times 1 -Exactly -Scope It
     }
 }
 
@@ -309,6 +469,19 @@ Describe "Economy mode" {
         Mock Get-RunningContainerIds { "another-container-id" }
         Stop-DockerAfterEconomyRun
         Assert-MockCalled Get-RunningContainerIds -Times 1 -Exactly -Scope It
+    }
+
+    It "releases resources after the legacy economy wait times out" {
+        Mock Adopt-LegacyData {}
+        Mock Write-Step {}
+        Mock Invoke-Compose {}
+        Mock Wait-Panel {}
+        Mock Start-WindowsNotifier {}
+        Mock Wait-EconomyRun { $Script:EconomySetupPending = $false; return $false }
+        Mock Stop-DockerAfterEconomyRun {}
+
+        Start-EconomyApplication
+        Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It
     }
 }
 
