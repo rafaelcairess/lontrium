@@ -31,7 +31,20 @@
     };
   }
 
-  const api = {normalizeLocale, detectLocale, setupScheduleValues};
+  function latestTimestamp(values = []) {
+    let latest = null;
+    let latestTime = Number.NEGATIVE_INFINITY;
+    for (const value of values) {
+      if (!value) continue;
+      const time = Date.parse(value);
+      if (Number.isNaN(time) || time <= latestTime) continue;
+      latest = value;
+      latestTime = time;
+    }
+    return latest;
+  }
+
+  const api = {normalizeLocale, detectLocale, setupScheduleValues, latestTimestamp};
   root.ClaimerI18n = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 }(typeof window === 'undefined' ? globalThis : window));

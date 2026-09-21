@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet("start", "stop", "economy", "scheduled", "sync-schedule", "configure-economy", "configure-dashboard", "configure-manual", "source", "source-build", "update", "uninstall", "check")]
     [string]$Action = "start",

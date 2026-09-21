@@ -167,6 +167,24 @@ Describe "Local dashboard readiness" {
 }
 
 Describe "Application identity" {
+    It "keeps the Windows PowerShell launcher encoded as UTF-8 with BOM" {
+        $path = "$PSScriptRoot/../installer/Start-ClaimerControl.ps1"
+        $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $path))
+        if ($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF) {
+            throw "Windows PowerShell 5.1 requires a UTF-8 BOM to read launcher Unicode correctly"
+        }
+        $launcher = [System.Text.Encoding]::UTF8.GetString($bytes)
+        $badSequences = @(
+            [string][char]0x00C3,
+            [string][char]0x00C2,
+            ([string][char]0x00E2 + [char]0x20AC),
+            ([string][char]0x00E2 + [char]0x00A0)
+        )
+        foreach ($sequence in $badSequences) {
+            if ($launcher.Contains($sequence)) { throw "Launcher contains mojibake" }
+        }
+    }
+
     It "uses the Lontrium Control icon for setup and shortcuts" {
         $installer = Get-Content -LiteralPath "$PSScriptRoot/../installer/ClaimerControl.iss" -Raw
         if ($installer -notmatch 'SetupIconFile=Lontrium\.ico') { throw "Setup icon is not configured" }

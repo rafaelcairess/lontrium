@@ -2,7 +2,7 @@ const token = document.querySelector('meta[name="fgc-token"]').content;
 const storeGrid = document.querySelector('#storeGrid');
 const toast = document.querySelector('#toast');
 const supportedLocales = ['en', 'pt-BR', 'es'];
-const {normalizeLocale, detectLocale, setupScheduleValues} = window.ClaimerI18n;
+const {normalizeLocale, detectLocale, setupScheduleValues, latestTimestamp} = window.ClaimerI18n;
 const logoStores = new Set(['steam', 'epic', 'gog', 'ubisoft', 'aliexpress', 'shopee']);
 const setupSteps = ['Language', 'Stores', 'Security', 'Accounts', 'Schedule', 'Review'];
 let translations = {};
@@ -19,7 +19,7 @@ let setupScheduleMode = 'economy';
 let onboardingPreview = false;
 let onboardingPreviewLocale = null;
 let statusPollTimer = null;
-let showAllHistory = false;
+let visibleDateCount = 1;
 
 function detectedLocale() {
   return detectLocale(
@@ -265,8 +265,9 @@ function createAddStoreRow(availableCount) {
 function renderHistory(history) {
   const container = document.querySelector('#historyList');
   const allRecords = Array.isArray(history) ? history : [];
-  const limit = showAllHistory ? 50 : 5;
-  const records = allRecords.slice(0, limit);
+  const uniqueDates = [...new Set(allRecords.map(r => r.finishedAt ? new Date(r.finishedAt).toLocaleDateString() : 'unknown'))];
+  const visibleDates = uniqueDates.slice(0, visibleDateCount);
+  const records = allRecords.filter(r => visibleDates.includes(r.finishedAt ? new Date(r.finishedAt).toLocaleDateString() : 'unknown'));
   const stores = new Map((latestStatus?.stores || []).map(store => [store.key, store]));
   if (!records.length) {
     const empty = document.createElement('p');
@@ -306,12 +307,12 @@ function renderHistory(history) {
     return card;
   });
   container.replaceChildren(...cards);
-  if (!showAllHistory && allRecords.length > 5) {
+  if (records.length < allRecords.length) {
     const seeMoreBtn = document.createElement('button');
     seeMoreBtn.className = 'button secondary see-more-history';
-    seeMoreBtn.textContent = t('history.seeMore', {count: allRecords.length - 5});
+    seeMoreBtn.textContent = t('history.seeMore', {count: allRecords.length - records.length});
     seeMoreBtn.addEventListener('click', () => {
-      showAllHistory = true;
+      visibleDateCount++;
       renderHistory(latestHistory);
     });
     container.append(seeMoreBtn);
@@ -325,7 +326,12 @@ function renderStatus(status) {
   const scheduled = status.schedule?.hostManaged && status.schedule?.economyEnabled;
   storeGrid.replaceChildren(...enabledStores.map(store => createStoreRow(store, status.running, scheduled && !completed.has(store.key))), createAddStoreRow(status.stores.length - enabledStores.length));
   document.querySelector('#activeStoreCount').textContent = String(enabledStores.length);
-  document.querySelector('#lastRun').textContent = relativeTime(status.schedule?.lastAutomaticRun || status.finishedAt);
+  const lastRun = latestTimestamp([
+    status.finishedAt,
+    status.schedule?.lastAutomaticRun,
+    ...enabledStores.map(store => store.lastRun),
+  ]);
+  document.querySelector('#lastRun').textContent = relativeTime(lastRun);
   const pendingCount = enabledStores.filter(store => !completed.has(store.key)).length;
   document.querySelector('#pendingStoreCount').textContent = scheduled ? String(pendingCount) : '—';
   const nextRun = status.schedule?.nextRun || nextHostRun(status);

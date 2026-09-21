@@ -7,7 +7,6 @@ according to user configuration.
 """
 import json
 import re
-import asyncio
 import httpx
 from urllib.parse import urlparse
 

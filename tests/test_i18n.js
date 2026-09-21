@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {normalizeLocale, detectLocale, setupScheduleValues} = require('../src/gui/static/i18n.js');
+const {normalizeLocale, detectLocale, setupScheduleValues, latestTimestamp} = require('../src/gui/static/i18n.js');
 
 test('normalizes Portuguese and Spanish Windows locales', () => {
   assert.equal(normalizeLocale('pt-PT'), 'pt-BR');
@@ -33,4 +33,14 @@ test('setup schedule presets map to validated backend settings', () => {
     WINDOWS_ECONOMY_SCHEDULE: false,
   });
   assert.equal(setupScheduleValues('invalid', '99:99').SCHEDULER_FIXED_TIMES, '12:00,16:00,19:00');
+});
+
+test('latest execution prefers a newer completed run over an older automatic run', () => {
+  assert.equal(latestTimestamp([
+    '2026-09-20T14:46:12.886693+00:00',
+    '2026-09-19T17:34:01.404692+00:00',
+    'not-a-date',
+    null,
+  ]), '2026-09-20T14:46:12.886693+00:00');
+  assert.equal(latestTimestamp([]), null);
 });

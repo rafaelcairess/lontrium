@@ -10,7 +10,7 @@ import nodriver as uc
 import pyotp
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from src.core.claimer import BaseClaimer, open_first_tab, now_str, filenamify
+from src.core.claimer import BaseClaimer, open_first_tab, filenamify
 from src.core.config import cfg
 from src.core.database import async_session, get_or_create
 
@@ -1160,9 +1160,6 @@ class PrimeGamingClaimer(BaseClaimer):
             _save_to_json(title, code=code, store=store, url=url, status="claimed")
 
             # External or GOG code: log and save
-            regex_pattern = re.compile(
-                r"https:\\/\\/www\\.amazon\\.com\\/gp\\/product\\/ajax\\/handlers\\/submit\\-claim\\.html\\/"
-            )
             redeem_urls = {
                 "gog": "https://www.gog.com/redeem",
                 "microsoft store": "https://account.microsoft.com/billing/redeem",

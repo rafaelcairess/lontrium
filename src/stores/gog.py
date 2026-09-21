@@ -5,10 +5,9 @@ from __future__ import annotations
 import json
 import logging
 
-import nodriver as uc
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from src.core.claimer import BaseClaimer, now_str
+from src.core.claimer import BaseClaimer
 from src.core.config import cfg
 from src.core.database import async_session, get_or_create
 from src.core.url_security import url_has_allowed_host
