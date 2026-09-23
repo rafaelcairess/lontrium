@@ -617,6 +617,8 @@ function Start-WindowsNotifier {
 function Stop-WindowsNotifier {
     Get-Process -Name "Lontrium.Notifier" -ErrorAction SilentlyContinue | ForEach-Object {
         try {
+            $commandLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue).CommandLine
+            if ($commandLine -match '(?i)--attention\s+login_required\s+aliexpress') { return }
             if ($NotifierPaths -contains $_.Path) { Stop-Process -Id $_.Id -Force }
         } catch { }
     }
@@ -626,6 +628,18 @@ function Show-WindowsLauncherFailure {
     if (Test-Path -LiteralPath $NotifierPath) {
         Start-Process -FilePath $NotifierPath -ArgumentList "--launcher-failure" -WindowStyle Hidden | Out-Null
     }
+}
+
+function Show-PendingWindowsAttention {
+    if (-not (Test-Path -LiteralPath $NotifierPath)) { return }
+    try {
+        $response = Get-DashboardJson "/api/windows-events"
+        @($response.events) | Where-Object {
+            $_.kind -eq "login_required" -and $_.store -eq "aliexpress"
+        } | Select-Object -First 1 | ForEach-Object {
+            Start-Process -FilePath $NotifierPath -ArgumentList @("--attention", "login_required", "aliexpress") -WindowStyle Hidden | Out-Null
+        }
+    } catch { }
 }
 
 function Get-LatestReleaseTag {
@@ -874,6 +888,7 @@ function Start-ScheduledApplication(
             $nowStr | Out-File -FilePath $SmartWakePath -Encoding ascii -Force
         }
     }
+    Show-PendingWindowsAttention
     Stop-DockerAfterEconomyRun -StopApp (-not $AppWasRunning) -StopDocker (-not $DockerWasRunning) -StopNotifier (-not $AppWasRunning)
 }
 
@@ -889,6 +904,7 @@ function Start-EconomyApplication {
     # keeps the dashboard available. A failed or timed-out run still releases
     # every resource this legacy economy action started.
     if ($completed -or -not $Script:EconomySetupPending) {
+        Show-PendingWindowsAttention
         Stop-DockerAfterEconomyRun
     }
 }

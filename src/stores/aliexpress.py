@@ -293,6 +293,7 @@ class AliExpressClaimer(BaseClaimer):
                 self.logger.info("Not logged in (login form shown on coin page) – authenticating...")
                 if not await self._ensure_logged_in():
                     logger.error("Aborting AliExpress flow due to login failure.")
+                    self._set_checkin_summary("login_required")
                     return
                 # Return to the coin page after a successful login.
                 await self._goto_coins_organically()
@@ -1383,9 +1384,18 @@ class AliExpressClaimer(BaseClaimer):
             "AliExpress: verification required",
             "Enter the 6-digit verification code from your email, or complete manual login in the browser.",
         )
-        if await self._wait_for_vnc_login(self._login_ok, custom_msg=custom_msg):
-            self.log_signed_in(cfg.ae_email or "AliExpress User")
-            return True
+        windows_event_id = None
+        if cfg.windows_notifications:
+            from src.gui.state import dashboard_state
+
+            windows_event_id = dashboard_state.request_manual_action("login_required", "aliexpress")
+        try:
+            if await self._wait_for_vnc_login(self._login_ok, custom_msg=custom_msg):
+                self.log_signed_in(cfg.ae_email or "AliExpress User")
+                return True
+        finally:
+            if windows_event_id:
+                dashboard_state.resolve_manual_action(windows_event_id)
 
         self.logger.error("Timed out waiting for AliExpress login.")
         return False

@@ -66,7 +66,10 @@ def summarize_store_result(store_key: str, result) -> tuple[str, dict | None]:
     if store_key in {"aliexpress", "shopee"} and isinstance(result.get("checkin"), dict):
         source = result["checkin"]
         outcome = source.get("outcome")
-        if outcome not in {"collected", "collected_manual", "already_collected", "not_collected", "available"}:
+        if outcome not in {
+            "collected", "collected_manual", "already_collected",
+            "not_collected", "available", "login_required",
+        }:
             outcome = "not_collected"
         details = {
             "kind": "coins",
@@ -84,6 +87,8 @@ def summarize_store_result(store_key: str, result) -> tuple[str, dict | None]:
             message = "Moedas já coletadas hoje"
         elif outcome == "available":
             message = "Coleta disponível (simulação)"
+        elif outcome == "login_required":
+            message = "Login necessário"
         else:
             message = "Moedas não coletadas"
         return message, details
@@ -114,6 +119,10 @@ def summarize_store_result(store_key: str, result) -> tuple[str, dict | None]:
 
 def store_result_message_key(store_key: str, result) -> str | None:
     """Translate allow-listed store result codes into stable client keys."""
+    if store_key == "aliexpress" and isinstance(result, dict):
+        checkin = result.get("checkin")
+        if isinstance(checkin, dict) and checkin.get("outcome") == "login_required":
+            return "status.actionRequired"
     if store_key == "steam" and isinstance(result, dict):
         if result.get("statusCode") == "no_active_giveaways":
             return "status.noActiveGiveaways"
@@ -180,6 +189,8 @@ class DashboardState:
     def request_manual_action(self, kind: str, store: str) -> str | None:
         """Publish a deduplicated, secret-free action for the local Windows helper."""
         valid = (kind in {"captcha", "failure", "timeout"} and store in STORE_META) or (
+            kind == "login_required" and store == "aliexpress"
+        ) or (
             kind in {"stop_all", "run_timeout"} and store == "system"
         )
         if not valid:
@@ -316,7 +327,15 @@ class DashboardState:
                 self._history.insert(0, deepcopy(record))
                 del self._history[250:]
                 if failed:
-                    notification_kind = "timeout" if resolved_key == "status.timeout" else "failure"
+                    if (
+                        key == "aliexpress"
+                        and isinstance(details, dict)
+                        and details.get("kind") == "coins"
+                        and details.get("outcome") == "login_required"
+                    ):
+                        notification_kind = "login_required"
+                    else:
+                        notification_kind = "timeout" if resolved_key == "status.timeout" else "failure"
         if notification_kind:
             self.request_manual_action(notification_kind, key)
         return record

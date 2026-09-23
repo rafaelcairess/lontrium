@@ -62,6 +62,7 @@ Describe "Lontrium Control launcher flow" {
         Mock Test-PanelReady { $true }
         Mock Test-DockerCommandAvailable { throw "Docker must not be inspected" }
         Mock Start-WindowsNotifier {}
+        Mock Show-PendingWindowsAttention {}
         $result = Invoke-ClaimerControl -RequestedAction start
         if ($result -ne 0) { throw "Expected launcher exit code 0, got $result" }
         Assert-MockCalled Wait-DockerDesktop -Times 0 -Exactly -Scope It
@@ -253,6 +254,13 @@ Describe "Application identity" {
         }
         if ($launcher -notmatch '\$NotifierPaths -contains \$_\.Path') {
             throw "Stop all cannot close every allowed notification-helper build"
+        }
+        if ($launcher -notmatch '--attention\\s\+login_required') {
+            throw "Economy cleanup does not preserve a pending login attention window"
+        }
+        $notifier = Get-Content -LiteralPath "$PSScriptRoot/../installer/windows-notifier/Program.cs" -Raw
+        if ($notifier -notmatch 'ShowAttentionWindow' -or $notifier -notmatch 'StartLontrium') {
+            throw "Expired AliExpress sessions do not open the native recovery window"
         }
     }
 
@@ -449,6 +457,7 @@ Describe "Scheduled collection ownership" {
         Mock Invoke-Compose {}
         Mock Wait-Panel {}
         Mock Start-WindowsNotifier {}
+        Mock Show-PendingWindowsAttention {}
         Mock Sync-WindowsSchedule {}
         Mock Ensure-WindowsScheduleMigration { $false }
         Mock Get-DashboardJson { [pscustomobject]@{setup = [pscustomobject]@{required = $true; complete = $true}} }
@@ -469,6 +478,7 @@ Describe "Scheduled collection ownership" {
 
     It "stops all resources that the scheduled run started" {
         Start-ScheduledApplication -DockerWasRunning $false -AppWasRunning $false
+        Assert-MockCalled Show-PendingWindowsAttention -Times 1 -Exactly -Scope It
         Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It -ParameterFilter {
             $StopApp -and $StopDocker -and $StopNotifier
         }
@@ -536,10 +546,12 @@ Describe "Economy mode" {
         Mock Invoke-Compose {}
         Mock Wait-Panel {}
         Mock Start-WindowsNotifier {}
+        Mock Show-PendingWindowsAttention {}
         Mock Wait-EconomyRun { $Script:EconomySetupPending = $false; return $false }
         Mock Stop-DockerAfterEconomyRun {}
 
         Start-EconomyApplication
+        Assert-MockCalled Show-PendingWindowsAttention -Times 1 -Exactly -Scope It
         Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It
     }
 }

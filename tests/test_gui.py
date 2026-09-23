@@ -15,7 +15,12 @@ import pytest
 
 from src.gui import settings
 from src.gui.server import start_dashboard
-from src.gui.state import DashboardState, store_result_succeeded, summarize_store_result
+from src.gui.state import (
+    DashboardState,
+    store_result_message_key,
+    store_result_succeeded,
+    summarize_store_result,
+)
 
 
 def test_status_polling_does_not_reset_manual_activity(monkeypatch):
@@ -128,7 +133,7 @@ def test_completed_coin_outcomes_stop_later_retries(outcome):
     assert store_result_succeeded("aliexpress", {"checkin": {"outcome": outcome}})
 
 
-@pytest.mark.parametrize("outcome", ["not_collected", "available", None])
+@pytest.mark.parametrize("outcome", ["not_collected", "available", "login_required", None])
 def test_incomplete_coin_outcomes_remain_pending(outcome):
     assert not store_result_succeeded("shopee", {"checkin": {"outcome": outcome}})
 
@@ -178,6 +183,29 @@ def test_failed_store_publishes_one_native_notification_per_run():
     second = state.manual_actions(True)["events"]
     assert [(event["kind"], event["store"]) for event in second] == [("timeout", "epic")]
     assert second[0]["id"] != first[0]["id"]
+
+
+def test_aliexpress_expired_login_publishes_a_specific_attention_event():
+    state = DashboardState()
+    state.begin_run(["aliexpress"])
+    result = {"checkin": {"outcome": "login_required"}}
+    message, details = summarize_store_result("aliexpress", result)
+
+    assert message == "Login necessário"
+    assert store_result_message_key("aliexpress", result) == "status.actionRequired"
+    assert not store_result_succeeded("aliexpress", result)
+
+    state.finish_store(
+        "aliexpress",
+        message,
+        failed=True,
+        details=details,
+        message_key="status.actionRequired",
+    )
+    assert [
+        (event["kind"], event["store"])
+        for event in state.manual_actions(True)["events"]
+    ] == [("login_required", "aliexpress")]
 
 
 def test_global_timeout_notification_is_allow_listed_and_optional():

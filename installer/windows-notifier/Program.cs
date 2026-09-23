@@ -8,6 +8,7 @@ using System.Security;
 using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
+using System.Windows.Forms;
 using Windows.Data.Xml.Dom;
 using Windows.UI.Notifications;
 
@@ -28,6 +29,12 @@ namespace Lontrium.Notifier
         [STAThread]
         private static void Main(string[] args)
         {
+            if (args.Length == 3 && args[0] == "--attention"
+                && args[1] == "login_required" && args[2] == "aliexpress")
+            {
+                ShowAttentionWindow(args[1], args[2]);
+                return;
+            }
             if (args.Length == 1 && args[0] == "--launcher-failure")
             {
                 Show(new ManualEvent { kind = "launcher_failure", store = "system" });
@@ -115,7 +122,7 @@ namespace Lontrium.Notifier
         {
             try
             {
-                string launcher = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Start-ClaimerControl.ps1");
+                string launcher = FindLauncher();
                 if (!File.Exists(launcher)) return;
                 Process.Start(new ProcessStartInfo
                 {
@@ -134,7 +141,7 @@ namespace Lontrium.Notifier
         {
             try
             {
-                string launcher = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Start-ClaimerControl.ps1");
+                string launcher = FindLauncher();
                 if (!File.Exists(launcher)) return;
                 Process.Start(new ProcessStartInfo
                 {
@@ -179,6 +186,7 @@ namespace Lontrium.Notifier
             return notificationsEnabled
                 && (((item.kind == "captcha" || item.kind == "failure" || item.kind == "timeout")
                     && AllowedStores.Contains(item.store ?? ""))
+                    || (item.kind == "login_required" && item.store == "aliexpress")
                     || (item.kind == "run_timeout" && item.store == "system"));
         }
 
@@ -186,6 +194,10 @@ namespace Lontrium.Notifier
         {
             try
             {
+                if (item.kind == "login_required")
+                {
+                    return StartAttentionWindow(item.kind, item.store);
+                }
                 string language = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
                 string title;
                 string body;
@@ -261,6 +273,112 @@ namespace Lontrium.Notifier
             {
                 return false;
             }
+        }
+
+        private static bool StartAttentionWindow(string kind, string store)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = Process.GetCurrentProcess().MainModule.FileName,
+                    Arguments = "--attention " + kind + " " + store,
+                    WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
+                    UseShellExecute = false,
+                });
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void ShowAttentionWindow(string kind, string store)
+        {
+            using (var mutex = new Mutex(true, @"Local\LontriumControlAttention-AliExpressLogin", out bool ownsMutex))
+            {
+                if (!ownsMutex) return;
+
+                string language = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+                string title = language == "pt" ? "Lontrium — login necessário"
+                    : language == "es" ? "Lontrium — inicio de sesión necesario"
+                    : "Lontrium — login required";
+                string body = language == "pt"
+                    ? "Não foi possível coletar as moedas do AliExpress porque a sessão expirou. Abra o Lontrium e entre novamente para proteger sua sequência.\n\nDeseja abrir o Lontrium agora?"
+                    : language == "es"
+                        ? "No se pudieron recoger las monedas de AliExpress porque la sesión caducó. Abre Lontrium e inicia sesión de nuevo para proteger tu racha.\n\n¿Quieres abrir Lontrium ahora?"
+                        : "AliExpress coins could not be collected because the session expired. Open Lontrium and sign in again to protect your streak.\n\nOpen Lontrium now?";
+
+                using (var owner = new Form())
+                {
+                    owner.ShowInTaskbar = false;
+                    owner.TopMost = true;
+                    owner.Opacity = 0;
+                    owner.StartPosition = FormStartPosition.CenterScreen;
+                    owner.Show();
+                    var result = MessageBox.Show(owner, body, title, MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1);
+                    owner.Close();
+                    if (result == DialogResult.Yes) StartLontrium();
+                }
+            }
+        }
+
+        private static void StartLontrium()
+        {
+            try
+            {
+                if (DashboardAvailable())
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = BrowserUrl,
+                        UseShellExecute = true,
+                    });
+                    return;
+                }
+                string launcher = FindLauncher();
+                if (!File.Exists(launcher)) return;
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = "-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"" + launcher + "\" -Action start -Language auto",
+                    WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                });
+            }
+            catch { }
+        }
+
+        private static bool DashboardAvailable()
+        {
+            try
+            {
+                var request = (HttpWebRequest)WebRequest.Create("http://127.0.0.1:8080/api/status");
+                request.Proxy = null;
+                request.Timeout = 1000;
+                request.ReadWriteTimeout = 1000;
+                using (var response = (HttpWebResponse)request.GetResponse())
+                {
+                    return response.StatusCode == HttpStatusCode.OK;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string FindLauncher()
+        {
+            string installed = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Start-ClaimerControl.ps1");
+            if (File.Exists(installed)) return installed;
+            return Path.GetFullPath(Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "..", "..", "..", "..", "Start-ClaimerControl.ps1"));
         }
 
         private static string StoreName(string store)

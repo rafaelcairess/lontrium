@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.2] - 2026-09-23
+
+### Added
+- A prominent native Windows recovery dialog when the AliExpress session expires. It appears while manual login is still possible, opens the active browser directly, and can restart Lontrium if the economy run has already shut down.
+
+### Changed
+- AliExpress login expiration is now recorded as a specific action-required result instead of a generic collection failure. The store remains pending and the recovery dialog survives automatic Docker cleanup.
+
 ## [1.6.1] - 2026-09-22
 
 ### Added

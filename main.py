@@ -371,13 +371,20 @@ async def run_claimers(
                 if isinstance(res, dict) and res.get("games"):
                     aggregated_results.append(res)
                 message, details = summarize_store_result(store_key, res)
-                succeeded = not retry_incomplete or store_result_succeeded(store_key, res)
+                result_message_key = store_result_message_key(store_key, res)
+                succeeded = (
+                    result_message_key != "status.actionRequired"
+                    and (not retry_incomplete or store_result_succeeded(store_key, res))
+                )
                 record = dashboard_state.finish_store(
                     store_key,
                     message,
                     failed=not succeeded,
                     details=details,
-                    message_key=(store_result_message_key(store_key, res) if succeeded else "status.failed"),
+                    message_key=(
+                        result_message_key
+                        or (None if succeeded else "status.failed")
+                    ),
                 )
                 await _persist_dashboard_result(record)
             except TimeoutError:
