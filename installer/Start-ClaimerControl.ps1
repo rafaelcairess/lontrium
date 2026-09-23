@@ -280,12 +280,92 @@ function Install-DockerDesktop {
     Refresh-Path
 }
 
-function Wait-DockerDesktop {
+function Start-UnattendedFocusGuard {
+    if ($Script:UnattendedFocusGuard) { return }
+    try {
+        $Script:UnattendedFocusGuard = Start-Job -ScriptBlock {
+            Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class LontriumFocusGuard {
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+}
+"@
+            $lastForeground = [LontriumFocusGuard]::GetForegroundWindow()
+            Write-Output "ready"
+            $deadline = [DateTime]::UtcNow.AddMinutes(10)
+            while ([DateTime]::UtcNow -lt $deadline) {
+                $foreground = [LontriumFocusGuard]::GetForegroundWindow()
+                $dockerIsForeground = $false
+                if ($foreground -ne [IntPtr]::Zero) {
+                    try {
+                        [uint32]$foregroundPid = 0
+                        [void][LontriumFocusGuard]::GetWindowThreadProcessId($foreground, [ref]$foregroundPid)
+                        $foregroundProcess = Get-Process -Id $foregroundPid -ErrorAction Stop
+                        $dockerIsForeground = $foregroundProcess.ProcessName -eq "Docker Desktop"
+                    } catch { }
+                }
+
+                if ($dockerIsForeground) {
+                    [void][LontriumFocusGuard]::ShowWindowAsync($foreground, 0)
+                    if ($lastForeground -ne [IntPtr]::Zero) {
+                        [void][LontriumFocusGuard]::SetForegroundWindow($lastForeground)
+                    }
+                } elseif ($foreground -ne [IntPtr]::Zero) {
+                    $lastForeground = $foreground
+                }
+                Start-Sleep -Milliseconds 50
+            }
+        }
+        for ($attempt = 1; $attempt -le 20; $attempt++) {
+            $signals = @(Receive-Job -Job $Script:UnattendedFocusGuard -Keep -ErrorAction SilentlyContinue)
+            if ($signals -contains "ready") { break }
+            Start-Sleep -Milliseconds 50
+        }
+    } catch {
+        $Script:UnattendedFocusGuard = $null
+    }
+}
+
+function Stop-UnattendedFocusGuard {
+    if (-not $Script:UnattendedFocusGuard) { return }
+    try {
+        Stop-Job -Job $Script:UnattendedFocusGuard -ErrorAction SilentlyContinue
+        Remove-Job -Job $Script:UnattendedFocusGuard -Force -ErrorAction SilentlyContinue
+    } finally {
+        $Script:UnattendedFocusGuard = $null
+    }
+}
+
+function Start-DockerDesktopDetached {
+    & docker desktop start --detach *> $null
+    return $LASTEXITCODE -eq 0
+}
+
+function Wait-DockerDesktop([bool]$Silent = $false) {
+    if ($Silent) { Start-UnattendedFocusGuard }
     if (Test-DockerReady) { return }
     Write-Step $Script:Text.StartingDocker
     $desktop = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
     if (-not (Test-Path -LiteralPath $desktop)) { throw "Docker Desktop executable not found" }
-    Start-Process -FilePath $desktop -WindowStyle Hidden | Out-Null
+    if ($Silent) {
+        if (-not (Start-DockerDesktopDetached)) {
+            Start-Process -FilePath $desktop -WindowStyle Hidden | Out-Null
+        }
+    } else {
+        Start-Process -FilePath $desktop -WindowStyle Hidden | Out-Null
+    }
     Write-Step $Script:Text.WaitingDocker
     for ($attempt = 1; $attempt -le 120; $attempt++) {
         if (Test-DockerReady) { Write-Host " OK" -ForegroundColor Green; return }
@@ -542,6 +622,12 @@ function Stop-WindowsNotifier {
     }
 }
 
+function Show-WindowsLauncherFailure {
+    if (Test-Path -LiteralPath $NotifierPath) {
+        Start-Process -FilePath $NotifierPath -ArgumentList "--launcher-failure" -WindowStyle Hidden | Out-Null
+    }
+}
+
 function Get-LatestReleaseTag {
     Write-Step $Script:Text.UpdateCheck
     $release = Invoke-RestMethod -Uri $ReleaseApi -Headers @{Accept = "application/vnd.github+json"; "User-Agent" = "lontrium-launcher/1.4.0"} -TimeoutSec 15
@@ -753,6 +839,7 @@ function Start-ScheduledApplication(
     Write-Step $Script:Text.Starting
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
+    Stop-UnattendedFocusGuard
     Start-WindowsNotifier
     Ensure-WindowsScheduleMigration | Out-Null
     $config = Get-DashboardJson "/api/config"
@@ -795,6 +882,7 @@ function Start-EconomyApplication {
     Write-Step $Script:Text.Starting
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
+    Stop-UnattendedFocusGuard
     Start-WindowsNotifier
     $completed = Wait-EconomyRun
     # Incomplete onboarding is the only unattended path that deliberately
@@ -897,7 +985,7 @@ function Invoke-ClaimerControl(
         }
         $dockerWasRunning = Test-DockerReady
         if (-not (Test-DockerCommandAvailable)) { Install-DockerDesktop }
-        Wait-DockerDesktop
+        Wait-DockerDesktop -Silent ($RequestedAction -in @("scheduled", "economy"))
         $appWasRunning = Test-LontriumContainerRunning
         if ($RequestedAction -eq "update") { Update-Application }
         elseif ($RequestedAction -eq "economy") { Write-OtterAscii; Start-EconomyApplication }
@@ -917,7 +1005,10 @@ function Invoke-ClaimerControl(
         return 0
     } catch {
         Write-Host ($Script:Text.Failed -f $_.Exception.Message) -ForegroundColor Red
+        if ($RequestedAction -in @("scheduled", "economy")) { Show-WindowsLauncherFailure }
         return 1
+    } finally {
+        Stop-UnattendedFocusGuard
     }
 }
 

@@ -162,6 +162,32 @@ def test_manual_action_events_are_safe_deduplicated_and_resolved():
     assert state.manual_actions(True)["events"] == []
 
 
+def test_failed_store_publishes_one_native_notification_per_run():
+    state = DashboardState()
+    state.begin_run(["epic"])
+
+    state.finish_store("epic", "failed", failed=True)
+    first = state.manual_actions(True)["events"]
+
+    assert [(event["kind"], event["store"]) for event in first] == [("failure", "epic")]
+    assert state.request_manual_action("failure", "epic") == first[0]["id"]
+
+    state.begin_run(["epic"])
+    assert state.manual_actions(True)["events"] == []
+    state.finish_store("epic", "timed out", failed=True, message_key="status.timeout")
+    second = state.manual_actions(True)["events"]
+    assert [(event["kind"], event["store"]) for event in second] == [("timeout", "epic")]
+    assert second[0]["id"] != first[0]["id"]
+
+
+def test_global_timeout_notification_is_allow_listed_and_optional():
+    state = DashboardState()
+    assert state.request_manual_action("run_timeout", "system")
+    assert state.request_manual_action("run_timeout", "epic") is None
+    assert state.manual_actions(False) == {"enabled": False, "events": []}
+    assert state.manual_actions(True)["events"][0]["kind"] == "run_timeout"
+
+
 def test_secret_values_are_never_returned(monkeypatch):
     monkeypatch.setattr(settings.cfg, "ae_email", "private@example.invalid")
     monkeypatch.setattr(settings.cfg, "ae_password", "do-not-return")
@@ -191,6 +217,10 @@ def test_native_notifier_uses_only_fixed_loopback_endpoints():
     assert 'BrowserUrl = "http://127.0.0.1:7080/?autoconnect=true"' in source
     assert "AllowedStores.Contains" in source
     assert 'item.kind == "captcha"' in source
+    assert 'item.kind == "failure"' in source
+    assert 'item.kind == "timeout"' in source
+    assert 'item.kind == "run_timeout"' in source
+    assert 'args[0] == "--launcher-failure"' in source
 
 
 def test_settings_are_validated_persisted_and_applied(tmp_path, monkeypatch):

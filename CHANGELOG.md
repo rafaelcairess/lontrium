@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.1] - 2026-09-22
+
+### Added
+- Native Windows notifications for store failures, store timeouts, global run timeouts and launcher startup failures. Alerts remain secret-free and failed stores stay pending for the next scheduled attempt.
+- A temporary focus guard for unattended starts that hides an unexpected Docker Desktop dashboard and restores the previously focused application.
+
+### Changed
+- Scheduled economy runs start Docker Desktop through its detached CLI, keeping PowerShell, Docker and the dashboard in the background during full-screen use.
+- The Windows notification setting now covers failures and timeouts as well as CAPTCHA actions, while successful automatic runs remain silent.
+- Recent activity expands one day at a time, and the dashboard's latest-run indicator uses the newest completed store or automatic run.
+- Source shortcuts explicitly use UTF-8 so launcher output renders correctly on Windows.
+
 ## [1.6.0] - 2026-09-19
 
 ### Changed

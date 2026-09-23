@@ -11,6 +11,7 @@ Describe "Lontrium Control launcher flow" {
         Mock Start-ScheduledApplication {}
         Mock Start-SourceApplication {}
         Mock Start-SourceBuildApplication {}
+        Mock Show-WindowsLauncherFailure {}
         Mock Install-DockerDesktop {}
         Mock Test-DockerReady { $false }
         Mock Test-LontriumContainerRunning { $false }
@@ -104,6 +105,16 @@ Describe "Lontrium Control launcher flow" {
         Assert-MockCalled Wait-DockerDesktop -Times 0 -Exactly -Scope It
         Assert-MockCalled Start-ScheduledApplication -Times 0 -Exactly -Scope It
     }
+
+    It "shows a native notification when an automatic launch fails" {
+        Mock Test-DockerCommandAvailable { $true }
+        Mock Wait-DockerDesktop { throw "startup failed" }
+
+        $result = Invoke-ClaimerControl -RequestedAction scheduled
+
+        if ($result -ne 1) { throw "Expected a failed scheduled launch" }
+        Assert-MockCalled Show-WindowsLauncherFailure -Times 1 -Exactly -Scope It
+    }
 }
 
 Describe "Legacy Docker data discovery" {
@@ -163,6 +174,34 @@ Describe "Local dashboard readiness" {
         Assert-MockCalled Invoke-WebRequest -Times 1 -Exactly -ParameterFilter {
             $Uri -eq "http://127.0.0.1:8080/api/status"
         }
+    }
+}
+
+Describe "Silent Docker Desktop startup" {
+    BeforeAll {
+        . "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Action scheduled -Language en
+    }
+
+    BeforeEach {
+        $script:dockerReadinessChecks = 0
+        Mock Test-DockerReady {
+            $script:dockerReadinessChecks++
+            return $script:dockerReadinessChecks -gt 1
+        }
+        Mock Test-Path { $true }
+        Mock Start-UnattendedFocusGuard {}
+        Mock Start-DockerDesktopDetached { $true }
+        Mock Write-Step {}
+        Mock Start-Sleep {}
+        Mock Start-Process {}
+    }
+
+    It "starts scheduled Docker through the detached CLI without opening the desktop executable" {
+        Wait-DockerDesktop -Silent $true
+
+        Assert-MockCalled Start-UnattendedFocusGuard -Times 1 -Exactly -Scope It
+        Assert-MockCalled Start-DockerDesktopDetached -Times 1 -Exactly -Scope It
+        Assert-MockCalled Start-Process -Times 0 -Exactly -Scope It
     }
 }
 
@@ -416,11 +455,13 @@ Describe "Scheduled collection ownership" {
         Mock Invoke-ScheduledDashboardRun { [pscustomobject]@{accepted = $true; runId = ("a" * 32); stores = @("epic")} }
         Mock Wait-ScheduledRun { $true }
         Mock Stop-DockerAfterEconomyRun {}
+        Mock Stop-UnattendedFocusGuard {}
         Mock Start-Process {}
     }
 
     It "does not stop a dashboard or Docker engine that the user already had open" {
         Start-ScheduledApplication -DockerWasRunning $true -AppWasRunning $true
+        Assert-MockCalled Stop-UnattendedFocusGuard -Times 1 -Exactly -Scope It
         Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It -ParameterFilter {
             -not $StopApp -and -not $StopDocker -and -not $StopNotifier
         }

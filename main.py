@@ -465,6 +465,7 @@ async def run_claimers(
     except TimeoutError:
         logger.error("✗ Claiming run exceeded the %ds global timeout", cfg.claim_run_timeout)
         records = dashboard_state.cancel_run("Tempo limite da execução excedido", "status.runTimeout")
+        dashboard_state.request_manual_action("run_timeout", "system")
         for record in records:
             await _persist_dashboard_result(record)
         await notify(

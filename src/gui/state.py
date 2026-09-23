@@ -179,8 +179,8 @@ class DashboardState:
 
     def request_manual_action(self, kind: str, store: str) -> str | None:
         """Publish a deduplicated, secret-free action for the local Windows helper."""
-        valid = (kind == "captcha" and store in STORE_META) or (
-            kind == "stop_all" and store == "system"
+        valid = (kind in {"captcha", "failure", "timeout"} and store in STORE_META) or (
+            kind in {"stop_all", "run_timeout"} and store == "system"
         )
         if not valid:
             return None
@@ -214,6 +214,13 @@ class DashboardState:
 
     def begin_run(self, store_keys: list[str]) -> str:
         with self._lock:
+            # Failure notifications are per run. CAPTCHA and control events
+            # keep their own lifecycle and must not be discarded here.
+            self._manual_actions = {
+                event_id: event
+                for event_id, event in self._manual_actions.items()
+                if event["kind"] not in {"failure", "timeout", "run_timeout"}
+            }
             self._running = True
             self._run_id = uuid4().hex
             self._started_at = _now()
@@ -274,6 +281,8 @@ class DashboardState:
         details: dict | None = None,
         message_key: str | None = None,
     ) -> dict | None:
+        record = None
+        notification_kind = None
         with self._lock:
             if key in self._stores:
                 finished_at = _now()
@@ -306,8 +315,11 @@ class DashboardState:
                 }
                 self._history.insert(0, deepcopy(record))
                 del self._history[250:]
-                return record
-            return None
+                if failed:
+                    notification_kind = "timeout" if resolved_key == "status.timeout" else "failure"
+        if notification_kind:
+            self.request_manual_action(notification_kind, key)
+        return record
 
     def finish_run(self) -> None:
         with self._lock:

@@ -26,8 +26,13 @@ namespace Lontrium.Notifier
         };
 
         [STAThread]
-        private static void Main()
+        private static void Main(string[] args)
         {
+            if (args.Length == 1 && args[0] == "--launcher-failure")
+            {
+                Show(new ManualEvent { kind = "launcher_failure", store = "system" });
+                return;
+            }
             using (var mutex = new Mutex(true, @"Local\LontriumControlNotifier", out bool ownsMutex))
             {
                 if (!ownsMutex) return;
@@ -57,7 +62,7 @@ namespace Lontrium.Notifier
                                 StartStopAll();
                                 return;
                             }
-                            if (Show(item.store)) Remember(seen, item.id);
+                            if (Show(item)) Remember(seen, item.id);
                         }
                     }
                 }
@@ -172,31 +177,81 @@ namespace Lontrium.Notifier
             if (item == null || !Guid.TryParseExact(item.id, "N", out _)) return false;
             if (item.kind == "stop_all") return item.store == "system";
             return notificationsEnabled
-                && item.kind == "captcha"
-                && AllowedStores.Contains(item.store ?? "");
+                && (((item.kind == "captcha" || item.kind == "failure" || item.kind == "timeout")
+                    && AllowedStores.Contains(item.store ?? ""))
+                    || (item.kind == "run_timeout" && item.store == "system"));
         }
 
-        private static bool Show(string store)
+        private static bool Show(ManualEvent item)
         {
             try
             {
                 string language = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
-                string title = language == "pt" ? "Lontrium — ação necessária"
-                    : language == "es" ? "Lontrium — acción necesaria"
-                    : "Lontrium — action required";
-                string storeName = StoreName(store);
-                string body = language == "pt" ? $"A {storeName} está aguardando a resolução de um CAPTCHA."
-                    : language == "es" ? $"{storeName} está esperando que resuelvas un CAPTCHA."
-                    : $"{storeName} is waiting for you to solve a CAPTCHA.";
-                string button = language == "pt" ? "Abrir navegador"
-                    : language == "es" ? "Abrir navegador"
-                    : "Open browser";
+                string title;
+                string body;
+                string button = null;
+                bool opensBrowser = false;
+                string storeName = item.store == "system" ? "Lontrium" : StoreName(item.store);
+
+                if (item.kind == "captcha")
+                {
+                    title = language == "pt" ? "Lontrium — ação necessária"
+                        : language == "es" ? "Lontrium — acción necesaria"
+                        : "Lontrium — action required";
+                    body = language == "pt" ? $"A {storeName} está aguardando a resolução de um CAPTCHA."
+                        : language == "es" ? $"{storeName} está esperando que resuelvas un CAPTCHA."
+                        : $"{storeName} is waiting for you to solve a CAPTCHA.";
+                    button = language == "pt" || language == "es" ? "Abrir navegador" : "Open browser";
+                    opensBrowser = true;
+                }
+                else if (item.kind == "timeout")
+                {
+                    title = language == "pt" ? "Lontrium — tempo limite excedido"
+                        : language == "es" ? "Lontrium — tiempo de espera agotado"
+                        : "Lontrium — store timed out";
+                    body = language == "pt" ? $"A {storeName} demorou demais. Ela continuará pendente e será tentada novamente."
+                        : language == "es" ? $"{storeName} tardó demasiado. Seguirá pendiente y se volverá a intentar."
+                        : $"{storeName} took too long. It remains pending and will be retried.";
+                }
+                else if (item.kind == "run_timeout")
+                {
+                    title = language == "pt" ? "Lontrium — execução interrompida"
+                        : language == "es" ? "Lontrium — ejecución interrumpida"
+                        : "Lontrium — run interrupted";
+                    body = language == "pt" ? "A rodada excedeu o limite de tempo. As lojas incompletas serão tentadas novamente."
+                        : language == "es" ? "La ejecución excedió el límite de tiempo. Las tiendas incompletas se volverán a intentar."
+                        : "The run exceeded its time limit. Incomplete stores will be retried.";
+                }
+                else if (item.kind == "launcher_failure")
+                {
+                    title = language == "pt" ? "Lontrium — não foi possível iniciar"
+                        : language == "es" ? "Lontrium — no se pudo iniciar"
+                        : "Lontrium — could not start";
+                    body = language == "pt" ? "A execução automática falhou antes de concluir. Abra o Lontrium para verificar."
+                        : language == "es" ? "La ejecución automática falló antes de finalizar. Abre Lontrium para comprobarlo."
+                        : "The automatic run failed before completion. Open Lontrium to investigate.";
+                }
+                else
+                {
+                    title = language == "pt" ? "Lontrium — falha na execução"
+                        : language == "es" ? "Lontrium — fallo de ejecución"
+                        : "Lontrium — run failed";
+                    body = language == "pt" ? $"A execução da {storeName} falhou. Ela continuará pendente e será tentada novamente."
+                        : language == "es" ? $"La ejecución de {storeName} falló. Seguirá pendiente y se volverá a intentar."
+                        : $"{storeName} failed. It remains pending and will be retried.";
+                }
                 string image = new Uri(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Lontrium.png")).AbsoluteUri;
-                string xml = "<toast launch=\"" + BrowserUrl + "\"><visual><binding template=\"ToastGeneric\">"
+                string xml = opensBrowser ? "<toast launch=\"" + BrowserUrl + "\">" : "<toast>";
+                xml += "<visual><binding template=\"ToastGeneric\">"
                     + "<text>" + Escape(title) + "</text><text>" + Escape(body) + "</text>"
                     + "<image placement=\"appLogoOverride\" hint-crop=\"circle\" src=\"" + Escape(image) + "\"/>"
-                    + "</binding></visual><actions><action content=\"" + Escape(button)
-                    + "\" arguments=\"" + BrowserUrl + "\" activationType=\"protocol\"/></actions></toast>";
+                    + "</binding></visual>";
+                if (opensBrowser)
+                {
+                    xml += "<actions><action content=\"" + Escape(button)
+                        + "\" arguments=\"" + BrowserUrl + "\" activationType=\"protocol\"/></actions>";
+                }
+                xml += "</toast>";
                 var document = new XmlDocument();
                 document.LoadXml(xml);
                 ToastNotificationManager.CreateToastNotifier(AppId).Show(new ToastNotification(document));
