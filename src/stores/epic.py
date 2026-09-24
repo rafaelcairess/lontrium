@@ -79,19 +79,49 @@ class EpicGamesClaimer(BaseClaimer):
         # Mobile game URL -> "Android"/"iOS", so claims can be told apart (same title on every platform).
         self._platform_labels: dict[str, str] = {}
 
+    async def _human_challenge_present(self) -> bool:
+        """Detect Epic security checks in both the page and checkout iframe."""
+        if await super()._human_challenge_present():
+            return True
+        if not self.page:
+            return False
+        try:
+            frame_tree = await self.page.send(uc.cdp.page.get_frame_tree())
+            frame_id = self._find_purchase_frame(frame_tree)
+            if not frame_id:
+                return False
+            context_id = await self.page.send(
+                uc.cdp.page.create_isolated_world(
+                    frame_id=frame_id,
+                    grant_univeral_access=True,
+                )
+            )
+            return bool(await self._eval_in_frame(context_id, """
+                (() => {
+                    const body = (document.body?.innerText || '').toLowerCase();
+                    const buttons = [...document.querySelectorAll('button')]
+                        .map(button => (button.innerText || button.textContent || '').toLowerCase());
+                    return body.includes('complete a security check')
+                        || body.includes('one more step')
+                        || body.includes('verify you are human')
+                        || buttons.some(label => label.includes('try again'));
+                })()
+            """))
+        except Exception:
+            logger.debug("Could not inspect Epic's purchase frame for a security check.")
+            return False
+
     async def run(self) -> None:
         """Main entry point: detect free games and claim them."""
         logger.debug("Starting Epic Games claiming flow")
         try:
             # Epic REQUIRES a visible browser window (headful mode).
             # Running headless triggers captcha challenges from their anti-bot system.
-            # GPU flags are needed so that WebGL reports a real GPU, not a software renderer.
+            # Do not force WebGPU here. Docker Desktop normally has no GPU device
+            # assigned to this container, so forcing WebGPU makes Chromium render
+            # in software and can consume several CPU cores indefinitely.
             await self.start_browser(
                 force_headful=True,
-                extra_args=[
-                    "--ignore-gpu-blocklist",   # Force GPU acceleration even if blocked
-                    "--enable-unsafe-webgpu",    # Enable WebGPU hardware acceleration
-                ],
             )
             # Set cookies to bypass age gates and cookie consent popups
             await self._set_cookies()
@@ -975,6 +1005,11 @@ class EpicGamesClaimer(BaseClaimer):
                     if await self._human_challenge_present():
                         if not await self._wait_out_challenge("Epic Games checkout"):
                             return False
+                        # A completed security check can reload the checkout and
+                        # require its final buttons to be clicked again.
+                        add_clicked = False
+                        accepted = False
+                        continue
                     # Check main page for Add to Library
                     without_cdp = await self.page.evaluate("""
                         (() => {
@@ -1012,6 +1047,10 @@ class EpicGamesClaimer(BaseClaimer):
                     # Also check inside the iframe for 'I accept' or 'Place Order' (just in case)
                     frame_tree = await self.page.send(uc.cdp.page.get_frame_tree())
                     iframe_frame_id = self._find_purchase_frame(frame_tree)
+
+                    if add_clicked and not iframe_frame_id:
+                        logger.debug("Purchase iframe closed after Add to library.")
+                        break
                     
                     if iframe_frame_id:
                         ctx_id = await self.page.send(
@@ -1022,39 +1061,36 @@ class EpicGamesClaimer(BaseClaimer):
                         )
                         # Check "Add to library" inside iframe
                         if not add_clicked:
-                            did_add = await self._eval_in_frame(ctx_id, """
-                                (() => {
-                                    const btns = [...document.querySelectorAll('button')];
-                                    const btn = btns.find(b => {
-                                        const t = (b.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-                                        return t.includes('add to library');
-                                    });
-                                    if (btn) { btn.click(); return true; }
-                                    return false;
-                                })()
-                            """)
+                            did_add = await self._cdp_click_in_purchase_frame(
+                                ctx_id, "add to library"
+                            )
                             if did_add:
-                                logger.debug("✓ Found and clicked 'Add to library' inside iframe.")
+                                logger.debug("✓ Clicked 'Add to library' inside iframe via CDP.")
                                 add_clicked = True
                                 await self.sleep(2)
 
                         # Check "I accept" inside iframe
                         if not accepted:
-                            did_accept = await self._eval_in_frame(ctx_id, """
-                                (() => {
-                                    const btns = [...document.querySelectorAll('button')];
-                                    const btn = btns.find(b => {
-                                        const t = (b.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-                                        return t.includes('i accept') || t.includes('i agree');
-                                    });
-                                    if (btn) { btn.click(); return true; }
-                                    return false;
-                                })()
-                            """)
+                            did_accept = await self._cdp_click_in_purchase_frame(
+                                ctx_id, "i accept", alternate_text="i agree"
+                            )
                             if did_accept:
-                                logger.debug("✓ Found and clicked 'I accept' inside iframe.")
+                                logger.debug("✓ Clicked 'I accept' inside iframe via CDP.")
                                 accepted = True
                                 await self.sleep(2)
+
+                        frame_done = await self._eval_in_frame(ctx_id, """
+                            (() => {
+                                const body = (document.body?.innerText || '')
+                                    .replace(/\\s+/g, ' ').toLowerCase();
+                                return body.includes('thank you')
+                                    || body.includes("it's all yours")
+                                    || body.includes('successfully added');
+                            })()
+                        """)
+                        if frame_done:
+                            logger.debug("Checkout confirmed inside purchase iframe.")
+                            return True
 
                     if add_clicked and accepted:
                         # Once we've clicked Add and explicitly handled Accept, we can wait for verification
@@ -1443,6 +1479,88 @@ class EpicGamesClaimer(BaseClaimer):
         except Exception:
             logger.debug("eval_in_frame failed: %s...", expression[:60])
             return None
+
+    async def _cdp_click_in_purchase_frame(
+        self,
+        context_id: int,
+        text: str,
+        *,
+        alternate_text: str = "",
+    ) -> bool:
+        """Send trusted mouse input to a button in Epic's checkout iframe.
+
+        ``element.click()`` in an isolated world can report success even when
+        Epic ignores the synthetic event. CDP input is trusted, but uses page
+        coordinates, so the frame and frame-local button positions are added.
+        """
+        import asyncio
+
+        wanted = json.dumps(text.lower())
+        alternate = json.dumps(alternate_text.lower())
+        button_raw = await self._eval_in_frame(
+            context_id,
+            f"""
+            JSON.stringify((() => {{
+                const wanted = {wanted};
+                const alternate = {alternate};
+                const buttons = [...document.querySelectorAll('button')];
+                const button = buttons.find(candidate => {{
+                    const label = (candidate.textContent || '')
+                        .replace(/\\s+/g, ' ').trim().toLowerCase();
+                    const rect = candidate.getBoundingClientRect();
+                    return !candidate.disabled && rect.width > 0 && rect.height > 0
+                        && (label.includes(wanted)
+                            || (alternate && label.includes(alternate)));
+                }});
+                if (!button) return null;
+                button.scrollIntoView({{block: 'center', behavior: 'instant'}});
+                const rect = button.getBoundingClientRect();
+                return {{x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}};
+            }})())
+            """,
+        )
+        frame_raw = await self.page.evaluate(
+            """
+            JSON.stringify((() => {
+                const frame = document.querySelector('#webPurchaseContainer iframe');
+                if (!frame) return null;
+                const rect = frame.getBoundingClientRect();
+                return {x: rect.left, y: rect.top, width: rect.width, height: rect.height};
+            })())
+            """
+        )
+        try:
+            button = json.loads(button_raw) if isinstance(button_raw, str) else None
+            frame = json.loads(frame_raw) if isinstance(frame_raw, str) else None
+        except (json.JSONDecodeError, TypeError):
+            return False
+        if not button or not frame:
+            return False
+
+        x = frame["x"] + button["x"]
+        y = frame["y"] + button["y"]
+        if not (frame["x"] <= x <= frame["x"] + frame["width"]):
+            return False
+        if not (frame["y"] <= y <= frame["y"] + frame["height"]):
+            return False
+
+        try:
+            await self.page.send(uc.cdp.input_.dispatch_mouse_event(type_="mouseMoved", x=x, y=y))
+            await asyncio.sleep(0.05)
+            await self.page.send(uc.cdp.input_.dispatch_mouse_event(
+                type_="mousePressed", x=x, y=y,
+                button=uc.cdp.input_.MouseButton("left"), click_count=1,
+            ))
+            await asyncio.sleep(0.1)
+            await self.page.send(uc.cdp.input_.dispatch_mouse_event(
+                type_="mouseReleased", x=x, y=y,
+                button=uc.cdp.input_.MouseButton("left"), click_count=1,
+            ))
+            logger.debug("CDP iframe click OK at (%.0f, %.0f) for '%s'.", x, y, text)
+            return True
+        except Exception as exc:
+            logger.warning("CDP iframe click failed for '%s': %s", text, exc)
+            return False
 
     async def _click_page_button_by_text(
         self, text: str, *, timeout: int = 3, log: str = ""

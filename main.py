@@ -263,7 +263,11 @@ def _warn_about_settings() -> None:
                        "Valid: %s", ", ".join(unknown), ", ".join(ALL_CLAIMERS))
 
 
-def _get_active_store_keys(requested_stores: list[str] | None = None) -> list[str]:
+def _get_active_store_keys(
+    requested_stores: list[str] | None = None,
+    *,
+    publish_selection: bool = True,
+) -> list[str]:
     """Determine which store keys are active without importing store modules.
 
     Priority:
@@ -282,9 +286,11 @@ def _get_active_store_keys(requested_stores: list[str] | None = None) -> list[st
     else:
         selected = list(DEFAULT_STORES)
 
-    # Published so GamerPower only delegates to stores this run actually starts.
-    apply_run_selection(selected)
-    logger.debug("Store selection: cli=%s STORES=%r -> %s", cli_stores, cfg.stores, selected)
+    # Only a real run publishes this selection. Dashboard polling is read-only
+    # and must not rewrite global run state or flood the logs every few seconds.
+    if publish_selection:
+        apply_run_selection(selected)
+        logger.debug("Store selection: cli=%s STORES=%r -> %s", cli_stores, cfg.stores, selected)
     return [key for key in selected if key in ALL_CLAIMERS]
 
 
@@ -710,7 +716,7 @@ async def main() -> None:
         from src.gui.server import start_dashboard
 
         async def dashboard_status() -> dict:
-            enabled = _get_active_store_keys()
+            enabled = _get_active_store_keys(publish_selection=False)
             last_automatic_run = await load_last_automatic_run()
             schedule = {
                 "nextRun": _next_scheduled_run(scheduler),

@@ -336,6 +336,21 @@ def test_dashboard_state_only_exposes_safe_result_details():
     assert ali["messageKey"] == "status.resultCoins"
 
 
+def test_begin_run_clears_the_previous_completion_timestamp():
+    state = DashboardState()
+    state.begin_run(["epic"])
+    state.begin_store("epic")
+    state.finish_store("epic", "ConcluÃ­do")
+    state.finish_run()
+    assert state.snapshot(["epic"])["finishedAt"] is not None
+
+    state.begin_run(["epic"])
+
+    payload = state.snapshot(["epic"])
+    assert payload["running"] is True
+    assert payload["finishedAt"] is None
+
+
 def test_finishing_independent_store_keeps_overlapping_run_active():
     state = DashboardState()
     state.begin_run(["epic", "gog"])

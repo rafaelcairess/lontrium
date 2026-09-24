@@ -7,6 +7,7 @@ services:
     # Windows Task Scheduler owns lifecycle in packaged installs. Automatic
     # container restart would keep Docker/WSL resident after an economy run.
     restart: "no"
+    cpus: ${CLAIMER_CPU_LIMIT:-2.0}
     mem_limit: ${CLAIMER_MEMORY_LIMIT:-2g}
     pids_limit: ${CLAIMER_PIDS_LIMIT:-512}
     logging:

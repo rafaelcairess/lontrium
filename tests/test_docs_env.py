@@ -14,6 +14,7 @@ README = (ROOT / "README.md").read_text(encoding="utf-8")
 # Handled by Docker/Compose rather than config.py.
 DOCKER_ONLY = {
     "CLAIMER_TAG",
+    "CLAIMER_CPU_LIMIT",
     "CLAIMER_MEMORY_LIMIT",
     "CLAIMER_PIDS_LIMIT",
     "CLEAN_BROWSER_CACHE_ON_STARTUP",

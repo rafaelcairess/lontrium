@@ -70,3 +70,21 @@ class TestClaimHonesty:
     def test_checkout_waits_for_manual_captcha_resolution(self):
         checkout = self.SOURCE.split("async def _handle_new_checkout", 1)[1]
         assert '_wait_out_challenge("Epic Games checkout")' in checkout
+
+    def test_epic_does_not_force_software_webgpu_inside_docker(self):
+        run = self.SOURCE.split("async def run", 1)[1].split("async def _set_cookies", 1)[0]
+        assert "--enable-unsafe-webgpu" not in run
+        assert "--ignore-gpu-blocklist" not in run
+
+    def test_cross_origin_checkout_uses_a_trusted_mouse_click(self):
+        checkout = self.SOURCE.split("async def _handle_new_checkout", 1)[1]
+        checkout = checkout.split("async def _cdp_click_element_by_text", 1)[0]
+        assert "_cdp_click_in_purchase_frame" in checkout
+        assert "if (btn) { btn.click(); return true; }" not in checkout
+
+    def test_cross_origin_security_check_is_detected(self):
+        detector = self.SOURCE.split("async def _human_challenge_present", 1)[1]
+        detector = detector.split("async def run", 1)[0]
+        assert "_find_purchase_frame" in detector
+        assert "complete a security check" in detector
+        assert "try again" in detector

@@ -235,6 +235,9 @@ class DashboardState:
             self._running = True
             self._run_id = uuid4().hex
             self._started_at = _now()
+            # A new active run must not expose the completion timestamp of the
+            # previous run through /api/status.
+            self._finished_at = None
             for key in store_keys:
                 if key in self._stores:
                     self._store_runs[key] = (self._run_id, self._started_at)

@@ -8,6 +8,7 @@ services:
     container_name: fgc-remaster
     build: .
     restart: "no"
+    cpus: ${CLAIMER_CPU_LIMIT:-2.0}
     mem_limit: ${CLAIMER_MEMORY_LIMIT:-2g}
     pids_limit: ${CLAIMER_PIDS_LIMIT:-512}
     logging:

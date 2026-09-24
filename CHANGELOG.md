@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.3] - 2026-09-24
+
+### Changed
+- Epic's browser no longer forces WebGPU software rendering inside Docker, and packaged containers are capped at two CPUs by default.
+- The unattended focus guard remains active for the full scheduled-run envelope instead of ending as soon as the dashboard starts.
+
+### Fixed
+- Epic checkout security checks inside the cross-origin purchase frame are now detected and routed to the existing native CAPTCHA notification instead of leaving the run apparently stuck.
+- Epic's cross-origin **Add to library** action now uses trusted CDP mouse input rather than a synthetic JavaScript click that the checkout can ignore.
+- A newly started run no longer exposes the previous run's completion timestamp, and dashboard polling no longer mutates store-selection state or floods debug logs.
+
 ## [1.6.2] - 2026-09-23
 
 ### Added

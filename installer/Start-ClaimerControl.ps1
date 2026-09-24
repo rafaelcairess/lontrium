@@ -304,7 +304,9 @@ public static class LontriumFocusGuard {
 "@
             $lastForeground = [LontriumFocusGuard]::GetForegroundWindow()
             Write-Output "ready"
-            $deadline = [DateTime]::UtcNow.AddMinutes(10)
+            # Keep guarding the entire scheduled-run envelope. Store/global
+            # timeouts may legitimately keep the launcher alive for 45 minutes.
+            $deadline = [DateTime]::UtcNow.AddHours(1)
             while ([DateTime]::UtcNow -lt $deadline) {
                 $foreground = [LontriumFocusGuard]::GetForegroundWindow()
                 $dockerIsForeground = $false
@@ -853,7 +855,6 @@ function Start-ScheduledApplication(
     Write-Step $Script:Text.Starting
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
-    Stop-UnattendedFocusGuard
     Start-WindowsNotifier
     Ensure-WindowsScheduleMigration | Out-Null
     $config = Get-DashboardJson "/api/config"
@@ -897,7 +898,6 @@ function Start-EconomyApplication {
     Write-Step $Script:Text.Starting
     Invoke-Compose @("up", "-d", "app")
     Wait-Panel
-    Stop-UnattendedFocusGuard
     Start-WindowsNotifier
     $completed = Wait-EconomyRun
     # Incomplete onboarding is the only unattended path that deliberately

@@ -470,7 +470,7 @@ Describe "Scheduled collection ownership" {
 
     It "does not stop a dashboard or Docker engine that the user already had open" {
         Start-ScheduledApplication -DockerWasRunning $true -AppWasRunning $true
-        Assert-MockCalled Stop-UnattendedFocusGuard -Times 1 -Exactly -Scope It
+        Assert-MockCalled Stop-UnattendedFocusGuard -Times 0 -Exactly -Scope It
         Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It -ParameterFilter {
             -not $StopApp -and -not $StopDocker -and -not $StopNotifier
         }
