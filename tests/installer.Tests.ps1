@@ -367,11 +367,13 @@ Describe "Windows Task Scheduler automation" {
             @($Trigger).Count -eq 3 -and
             $Settings.StartWhenAvailable -and
             $Settings.WakeToRun -and
-            [string]$Settings.MultipleInstances -eq "IgnoreNew" -and
-            [IO.Path]::GetFileName([string]$Action.Execute) -eq "Lontrium.Notifier.exe" -and
-            $Action.Arguments -eq '--scheduled scheduled'
+            [string]$Settings.MultipleInstances -eq "IgnoreNew"
         }
         $launcher = Get-Content -LiteralPath "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Raw
+        if ($launcher -notmatch 'New-ScheduledTaskAction\s+-Execute\s+\$NotifierPath\s+-Argument\s+\$arguments' -or
+            $launcher -notmatch '\$arguments\s*=\s*"--scheduled \$scheduledAction"') {
+            throw "The scheduled task is not hosted by the native windowless helper"
+        }
         if ($launcher -notmatch 'ExecutionTimeLimit\s*=\s*\(New-TimeSpan -Hours 1\)') {
             throw "The external scheduled-task limit is not one hour"
         }
