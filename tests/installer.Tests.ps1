@@ -255,12 +255,18 @@ Describe "Application identity" {
         if ($launcher -notmatch '\$NotifierPaths -contains \$_\.Path') {
             throw "Stop all cannot close every allowed notification-helper build"
         }
-        if ($launcher -notmatch '--attention\\s\+login_required') {
-            throw "Economy cleanup does not preserve a pending login attention window"
+        if ($launcher -notmatch '--notify') {
+            throw "Economy cleanup does not publish pending login notifications"
         }
         $notifier = Get-Content -LiteralPath "$PSScriptRoot/../installer/windows-notifier/Program.cs" -Raw
-        if ($notifier -notmatch 'ShowAttentionWindow' -or $notifier -notmatch 'StartLontrium') {
-            throw "Expired AliExpress sessions do not open the native recovery window"
+        if ($notifier -match 'ShowAttentionWindow|MessageBox' -or $notifier -notmatch 'StartLontrium') {
+            throw "Expired AliExpress sessions must use a non-modal toast"
+        }
+        if ($notifier -notmatch 'CreateNoWindow\s*=\s*true' -or $notifier -notmatch 'args\[0\]\s*==\s*"--scheduled"') {
+            throw "Scheduled runs are not hosted by the windowless helper"
+        }
+        if ($notifier -notmatch 'lontrium-action://skip/' -or $notifier -notmatch 'Tag\s*=') {
+            throw "Actionable replacement notifications are missing"
         }
     }
 
@@ -360,7 +366,8 @@ Describe "Windows Task Scheduler automation" {
             $Settings.StartWhenAvailable -and
             $Settings.WakeToRun -and
             [string]$Settings.MultipleInstances -eq "IgnoreNew" -and
-            $Action.Arguments -match '-Action scheduled'
+            [IO.Path]::GetFileName([string]$Action.Execute) -eq "Lontrium.Notifier.exe" -and
+            $Action.Arguments -eq '--scheduled scheduled'
         }
         $launcher = Get-Content -LiteralPath "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Raw
         if ($launcher -notmatch 'ExecutionTimeLimit\s*=\s*\(New-TimeSpan -Hours 1\)') {
@@ -398,7 +405,10 @@ Describe "Windows Task Scheduler automation" {
     }
 
     It "does not resync a signed task during a normal open" {
-        Mock Get-ScheduledTask { [pscustomobject]@{Description = "Starts Lontrium only when an automatic collection is due. Config:$('A' * 64)"} }
+        Mock Get-ScheduledTask { [pscustomobject]@{
+            Description = "Starts Lontrium only when an automatic collection is due. Config:$('A' * 64)"
+            Actions = @([pscustomobject]@{Execute = $NotifierPath; Arguments = "--scheduled scheduled"})
+        } }
         Mock Sync-WindowsSchedule {}
         $migrated = Ensure-WindowsScheduleMigration
         if ($migrated) { throw "A signed task must already be considered migrated" }
@@ -487,6 +497,14 @@ Describe "Scheduled collection ownership" {
     It "releases owned resources after an external run timeout" {
         Mock Wait-ScheduledRun { $false }
         Start-ScheduledApplication -DockerWasRunning $false -AppWasRunning $false
+        Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It -ParameterFilter {
+            $StopApp -and $StopDocker -and $StopNotifier
+        }
+    }
+
+    It "releases owned resources when dashboard polling throws" {
+        Mock Wait-ScheduledRun { throw "dashboard unavailable" }
+        { Start-ScheduledApplication -DockerWasRunning $false -AppWasRunning $false } | Should Throw
         Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It -ParameterFilter {
             $StopApp -and $StopDocker -and $StopNotifier
         }
@@ -583,5 +601,12 @@ Describe "Stop all action" {
 
         if ($result -ne 0) { throw "Stop should succeed" }
         Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It
+    }
+
+    It "uses ordinary toasts instead of preserving an attention window" {
+        $launcher = Get-Content -LiteralPath "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Raw
+        if ($launcher -match 'PreserveAttention|--attention') {
+            throw "The legacy focus-stealing attention window is still referenced"
+        }
     }
 }

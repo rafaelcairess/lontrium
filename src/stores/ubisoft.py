@@ -236,6 +236,7 @@ class UbisoftClaimer(BaseClaimer):
 
             if not await self._ensure_logged_in():
                 logger.error("Aborting Ubisoft claim flow due to login failure.")
+                self.run_error = "login_required"
                 return
 
             for game in games:
@@ -245,6 +246,7 @@ class UbisoftClaimer(BaseClaimer):
 
         except Exception as exc:
             logger.exception("Fatal error during Ubisoft flow")
+            self.run_error = str(exc) or type(exc).__name__
             if cfg.notify_errors:
                 await self.notify(f"{self.store_name} failed: {exc}")
         finally:
@@ -736,4 +738,7 @@ async def claim_ubisoft() -> dict:
     """Convenience entry point."""
     claimer = UbisoftClaimer()
     await claimer.run()
-    return {"store": "Ubisoft", "user": claimer.user, "games": claimer.notify_games}
+    return {
+        "store": "Ubisoft", "user": claimer.user,
+        "games": claimer.notify_games, "runError": claimer.run_error,
+    }

@@ -87,14 +87,9 @@ class SteamClaimer(BaseClaimer):
         logger.debug("Starting Steam claiming flow")
 
         try:
-            # Step 1: Open a browser with GPU acceleration enabled.
-            await self.start_browser(
-                force_headful=True,
-                extra_args=[
-                    "--ignore-gpu-blocklist",
-                    "--enable-unsafe-webgpu",
-                ],
-            )
+            # Let Chrome select the renderer. Forcing unsafe WebGPU can spin a
+            # software renderer at full CPU inside Linux containers.
+            await self.start_browser(force_headful=True)
 
             # Login first. Otherwise a manual login can replace the SteamDB page
             # while it is being scraped, which used to close the browser early.
@@ -103,6 +98,7 @@ class SteamClaimer(BaseClaimer):
             await self._dismiss_cookie_banner()
             if not await self._ensure_logged_in(URL_STORE):
                 logger.warning("Steam login was not completed; skipping this run.")
+                self.run_error = "login_required"
                 return
 
             # Search the official Store first. A valid empty response means there
@@ -133,6 +129,7 @@ class SteamClaimer(BaseClaimer):
 
         except Exception as exc:
             logger.exception("Fatal error")
+            self.run_error = str(exc) or type(exc).__name__
             if cfg.notify_errors:
                 await self.notify(f"steam failed: {exc}")
         finally:
@@ -969,4 +966,5 @@ async def claim_steam() -> dict:
         "user": claimer.user,
         "games": claimer.notify_games,
         "statusCode": claimer.run_status,
+        "runError": claimer.run_error,
     }

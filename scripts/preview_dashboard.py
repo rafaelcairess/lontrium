@@ -110,12 +110,16 @@ async def main() -> None:
             "ITCHIO_ENABLE": False,
             "INDIEGALA_ENABLE": False,
         }
+
         return {
             "schema": [spec.public() for spec in SPECS],
             "values": values,
             "configured": {spec.key: False for spec in SPECS if spec.secret},
             "setup": {"required": True, "complete": False},
         }
+
+    async def history(_limit: int, _run_id: str | None) -> dict:
+        return {"history": []}
 
     async def save(_values: dict) -> dict:
         return {"changed": [], "restartRequired": []}
@@ -129,23 +133,37 @@ async def main() -> None:
     async def manual_actions() -> dict:
         return {"enabled": True, "events": []}
 
-    async def run(_stores: list[str] | None) -> bool:
+    async def manual_action(_event_id: str, _action: str) -> dict:
+        return {"accepted": False}
+
+    async def run(
+        _stores: list[str] | None,
+        _mode: str | None = None,
+        _local_date: str | None = None,
+        _utc_offset_minutes: int | None = None,
+    ) -> bool:
         return True
 
     async def stop() -> dict:
         return {"accepted": True, "cancelledTasks": 0, "hostShutdownRequested": False}
 
+    async def activity() -> dict:
+        return {"accepted": True}
+
     server = start_dashboard(
         loop=asyncio.get_running_loop(),
         port=8765,
         status_callback=status,
+        history_callback=history,
         config_callback=config,
         save_callback=save,
         setup_callback=setup,
         update_callback=update,
         manual_actions_callback=manual_actions,
+        manual_action_callback=manual_action,
         run_callback=run,
         stop_callback=stop,
+        activity_callback=activity,
     )
     try:
         await asyncio.Event().wait()

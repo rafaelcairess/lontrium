@@ -220,6 +220,7 @@ class UnityClaimer(BaseClaimer):
 
             if not await self._ensure_logged_in():
                 logger.error("Aborting Unity claim flow due to login failure.")
+                self.run_error = "login_required"
                 return
 
             await self._claim_asset(asset)
@@ -227,6 +228,7 @@ class UnityClaimer(BaseClaimer):
 
         except Exception as exc:
             logger.exception("Fatal error during Unity flow")
+            self.run_error = str(exc) or type(exc).__name__
             if cfg.notify_errors:
                 await self.notify(f"{self.store_name} failed: {exc}")
         finally:
@@ -720,4 +722,7 @@ async def claim_unity() -> dict:
     """Convenience entry point."""
     claimer = UnityClaimer()
     await claimer.run()
-    return {"store": "Unity", "user": claimer.user, "games": claimer.notify_games}
+    return {
+        "store": "Unity", "user": claimer.user,
+        "games": claimer.notify_games, "runError": claimer.run_error,
+    }

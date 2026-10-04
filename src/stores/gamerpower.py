@@ -321,6 +321,7 @@ class GamerPowerClaimer(BaseClaimer):
 
         except Exception as exc:
             logger.exception("Fatal error in GamerPower")
+            self.run_error = str(exc) or type(exc).__name__
             if cfg.notify_errors:
                 await self.notify(f"gamerpower failed: {exc}")
         finally:
@@ -412,17 +413,18 @@ class GamerPowerClaimer(BaseClaimer):
             try:
                 # A dedicated browser on the Steam profile, so cookies and auth carry over.
                 await claimer.start_browser(
-                    force_headful=True,
-                    extra_args=["--ignore-gpu-blocklist", "--enable-unsafe-webgpu"]
+                    force_headful=True
                 )
                 for game in wanted:
                     try:
                         await claimer._claim_game({**game, "url": game["final_url"], "source": "gamerpower"})
-                    except Exception:
+                    except Exception as exc:
                         logger.exception("[GamerPower] Steam delegation failed for '%s'",
                                          game.get("title", "Unknown"))
-            except Exception:
+                        self.run_error = str(exc) or type(exc).__name__
+            except Exception as exc:
                 logger.exception("[GamerPower] Steam delegation failed to start")
+                self.run_error = str(exc) or type(exc).__name__
             finally:
                 await claimer.close_browser()
 
@@ -437,22 +439,21 @@ class GamerPowerClaimer(BaseClaimer):
             claimer.notify_games = self.notify_games
 
             try:
-                # Same GPU flags epic.py uses: software rendering is what summons the captcha.
-                await claimer.start_browser(
-                    force_headful=True,
-                    extra_args=["--ignore-gpu-blocklist", "--enable-unsafe-webgpu"]
-                )
+                await claimer.start_browser(force_headful=True)
                 if not await claimer._ensure_logged_in():
                     logger.warning("[GamerPower] Epic login failed, skipping %d game(s)", len(wanted))
+                    self.run_error = "epic_login_required"
                     return
                 for game in wanted:
                     try:
                         await claimer._claim_game(game["final_url"])
-                    except Exception:
+                    except Exception as exc:
                         logger.exception("[GamerPower] Epic delegation failed for '%s'",
                                          game.get("title", "Unknown"))
-            except Exception:
+                        self.run_error = str(exc) or type(exc).__name__
+            except Exception as exc:
                 logger.exception("[GamerPower] Epic delegation failed to start")
+                self.run_error = str(exc) or type(exc).__name__
             finally:
                 await claimer.close_browser()
 
@@ -468,10 +469,12 @@ class GamerPowerClaimer(BaseClaimer):
                 await claimer.start_browser()
                 if not await claimer._ensure_logged_in():
                     logger.warning("[GamerPower] GOG login failed, skipping %d game(s)", len(games))
+                    self.run_error = "gog_login_required"
                     return
                 await claimer._claim_giveaway()
-            except Exception:
+            except Exception as exc:
                 logger.exception("[GamerPower] GOG delegation failed")
+                self.run_error = str(exc) or type(exc).__name__
             finally:
                 await claimer.close_browser()
 
@@ -1145,4 +1148,7 @@ async def claim_gamerpower() -> dict:
     """Entry point for testing and execution."""
     claimer = GamerPowerClaimer()
     await claimer.run()
-    return {"store": "GamerPower", "user": None, "games": claimer.notify_games}
+    return {
+        "store": "GamerPower", "user": None,
+        "games": claimer.notify_games, "runError": claimer.run_error,
+    }

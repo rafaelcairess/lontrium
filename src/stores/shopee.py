@@ -171,6 +171,7 @@ class ShopeeClaimer(BaseClaimer):
                 self.logger.warning("Shopee check-in click could not be confirmed; no success was reported.")
         except Exception as exc:
             self.logger.exception("Shopee daily check-in failed: %s", exc)
+            self.run_error = str(exc) or type(exc).__name__
             if cfg.notify_errors:
                 await self.notify(f"Shopee failed: {exc}")
         finally:
@@ -189,4 +190,5 @@ async def claim_shopee() -> dict:
         "user": claimer.user,
         "games": claimer.notify_games,
         "checkin": claimer.checkin_summary,
+        "runError": claimer.run_error,
     }

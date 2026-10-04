@@ -492,15 +492,23 @@ function Sync-WindowsSchedule {
     $effectiveWake = $economy -and $wakeOnAc
     $signatureSource = @(
         "economy=$economy", "logon=$effectiveLogon", "wake=$effectiveWake",
-        "times=$($times -join ',')", "action=$scheduledAction", "launcher=$launcher"
+        "times=$($times -join ',')", "action=$scheduledAction", "launcher=$launcher",
+        "taskHost=$NotifierPath"
     ) -join "|"
     $signature = Get-Sha256Hex $signatureSource
     $description = "Starts Lontrium only when an automatic collection is due. Config:$signature"
     if ($existing -and [string]$existing.Description -eq $description) { return }
 
     if ($existing) { Remove-WindowsSchedule }
-    $arguments = '-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Action {1} -Language auto' -f $launcher, $scheduledAction
-    $taskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $arguments -WorkingDirectory $PSScriptRoot
+    if (Test-Path -LiteralPath $NotifierPath) {
+        $arguments = "--scheduled $scheduledAction"
+        $taskAction = New-ScheduledTaskAction -Execute $NotifierPath -Argument $arguments -WorkingDirectory $PSScriptRoot
+    } else {
+        # Development checkout before the helper is built. Installed releases
+        # always use the WinExe host above, which cannot create a console.
+        $arguments = '-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Action {1} -Language auto' -f $launcher, $scheduledAction
+        $taskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $arguments -WorkingDirectory $PSScriptRoot
+    }
     $triggers = @()
     if ($effectiveLogon) {
         $triggers += New-ScheduledTaskTrigger -AtLogOn -User ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
@@ -529,7 +537,12 @@ function Sync-WindowsSchedule {
 
 function Ensure-WindowsScheduleMigration {
     $existing = Get-ScheduledTask -TaskName $ScheduledTaskName -ErrorAction SilentlyContinue
-    if ($existing -and [string]$existing.Description -notmatch 'Config:[A-F0-9]{64}$') {
+    if (-not $existing) { return $false }
+    $nativeAction = @($existing.Actions | Where-Object {
+        [IO.Path]::GetFileName([string]$_.Execute) -ieq "Lontrium.Notifier.exe" -and
+        [string]$_.Arguments -match '^--scheduled\s+(scheduled|start)$'
+    }).Count -gt 0
+    if ([string]$existing.Description -notmatch 'Config:[A-F0-9]{64}$' -or -not $nativeAction) {
         Sync-WindowsSchedule
         return $true
     }
@@ -612,15 +625,24 @@ function Test-PanelReady {
 
 function Start-WindowsNotifier {
     if (Test-Path -LiteralPath $NotifierPath) {
+        Register-LontriumActionProtocol
         Start-Process -FilePath $NotifierPath -WindowStyle Hidden | Out-Null
     }
+}
+
+function Register-LontriumActionProtocol {
+    if (-not (Test-Path -LiteralPath $NotifierPath)) { return }
+    $protocol = "HKCU:\Software\Classes\lontrium-action"
+    New-Item -Path $protocol -Force | Out-Null
+    Set-Item -Path $protocol -Value "URL:Lontrium Control action"
+    New-ItemProperty -Path $protocol -Name "URL Protocol" -Value "" -PropertyType String -Force | Out-Null
+    $command = New-Item -Path (Join-Path $protocol "shell\open\command") -Force
+    Set-Item -Path $command.PSPath -Value ('"{0}" --toast-action "%1"' -f $NotifierPath)
 }
 
 function Stop-WindowsNotifier {
     Get-Process -Name "Lontrium.Notifier" -ErrorAction SilentlyContinue | ForEach-Object {
         try {
-            $commandLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $($_.Id)" -ErrorAction SilentlyContinue).CommandLine
-            if ($commandLine -match '(?i)--attention\s+login_required\s+aliexpress') { return }
             if ($NotifierPaths -contains $_.Path) { Stop-Process -Id $_.Id -Force }
         } catch { }
     }
@@ -639,7 +661,7 @@ function Show-PendingWindowsAttention {
         @($response.events) | Where-Object {
             $_.kind -eq "login_required" -and $_.store -eq "aliexpress"
         } | Select-Object -First 1 | ForEach-Object {
-            Start-Process -FilePath $NotifierPath -ArgumentList @("--attention", "login_required", "aliexpress") -WindowStyle Hidden | Out-Null
+            Start-Process -FilePath $NotifierPath -ArgumentList @("--notify", $_.kind, $_.store, $_.id) -WindowStyle Hidden | Out-Null
         }
     } catch { }
 }
@@ -850,62 +872,74 @@ function Start-ScheduledApplication(
     [bool]$AppWasRunning
 ) {
     $nowStr = (Get-Date).ToString("yyyy-MM-dd", [Globalization.CultureInfo]::InvariantCulture)
-
-    Adopt-LegacyData
-    Write-Step $Script:Text.Starting
-    Invoke-Compose @("up", "-d", "app")
-    Wait-Panel
-    Start-WindowsNotifier
-    Ensure-WindowsScheduleMigration | Out-Null
-    $config = Get-DashboardJson "/api/config"
-    if ($config.setup.required -and -not $config.setup.complete) {
-        Write-Host $Script:Text.EconomySetup -ForegroundColor Yellow
-        Start-Process $PanelUrl | Out-Null
-        return
-    }
-    $run = Invoke-ScheduledDashboardRun
-    if (-not $run.accepted -and $run.reason -eq "already-complete") {
-        Write-Host $Script:Text.ScheduleComplete -ForegroundColor Green
-        
-        # SMART WAKE STATE UPDATE (first run after completion)
-        if (-not (Test-Path -LiteralPath $StateDirectory)) {
-            New-Item -ItemType Directory -Path $StateDirectory -Force | Out-Null
+    $keepResourcesForSetup = $false
+    try {
+        Adopt-LegacyData
+        Write-Step $Script:Text.Starting
+        Invoke-Compose @("up", "-d", "app")
+        Wait-Panel
+        Start-WindowsNotifier
+        Ensure-WindowsScheduleMigration | Out-Null
+        $config = Get-DashboardJson "/api/config"
+        if ($config.setup.required -and -not $config.setup.complete) {
+            $keepResourcesForSetup = $true
+            Write-Host $Script:Text.EconomySetup -ForegroundColor Yellow
+            Start-Process $PanelUrl | Out-Null
+            return
         }
-        $nowStr | Out-File -FilePath $SmartWakePath -Encoding ascii -Force
-        
-        Stop-DockerAfterEconomyRun -StopApp (-not $AppWasRunning) -StopDocker (-not $DockerWasRunning) -StopNotifier (-not $AppWasRunning)
-        return
-    }
-    if (-not $run.accepted) { throw "The scheduled run was not accepted: $($run.reason)" }
-    $completed = Wait-ScheduledRun ([string]$run.runId)
-    if ($completed) {
-        # Check if the run we just finished completed all pending stores
-        $postRunCheck = Invoke-ScheduledDashboardRun
-        if (-not $postRunCheck.accepted -and $postRunCheck.reason -eq "already-complete") {
-            # SMART WAKE STATE UPDATE (successful run)
+        $run = Invoke-ScheduledDashboardRun
+        if (-not $run.accepted -and $run.reason -eq "already-complete") {
+            Write-Host $Script:Text.ScheduleComplete -ForegroundColor Green
             if (-not (Test-Path -LiteralPath $StateDirectory)) {
                 New-Item -ItemType Directory -Path $StateDirectory -Force | Out-Null
             }
             $nowStr | Out-File -FilePath $SmartWakePath -Encoding ascii -Force
+            return
+        }
+        if (-not $run.accepted) { throw "The scheduled run was not accepted: $($run.reason)" }
+        $completed = Wait-ScheduledRun ([string]$run.runId)
+        if ($completed) {
+            # Check if the run we just finished completed all pending stores.
+            $postRunCheck = Invoke-ScheduledDashboardRun
+            if (-not $postRunCheck.accepted -and $postRunCheck.reason -eq "already-complete") {
+                if (-not (Test-Path -LiteralPath $StateDirectory)) {
+                    New-Item -ItemType Directory -Path $StateDirectory -Force | Out-Null
+                }
+                $nowStr | Out-File -FilePath $SmartWakePath -Encoding ascii -Force
+            }
+        }
+    } finally {
+        if (-not $keepResourcesForSetup) {
+            Show-PendingWindowsAttention
+            Stop-DockerAfterEconomyRun `
+                -StopApp (-not $AppWasRunning) `
+                -StopDocker (-not $DockerWasRunning) `
+                -StopNotifier (-not $AppWasRunning)
         }
     }
-    Show-PendingWindowsAttention
-    Stop-DockerAfterEconomyRun -StopApp (-not $AppWasRunning) -StopDocker (-not $DockerWasRunning) -StopNotifier (-not $AppWasRunning)
 }
 
-function Start-EconomyApplication {
-    Adopt-LegacyData
-    Write-Step $Script:Text.Starting
-    Invoke-Compose @("up", "-d", "app")
-    Wait-Panel
-    Start-WindowsNotifier
-    $completed = Wait-EconomyRun
-    # Incomplete onboarding is the only unattended path that deliberately
-    # keeps the dashboard available. A failed or timed-out run still releases
-    # every resource this legacy economy action started.
-    if ($completed -or -not $Script:EconomySetupPending) {
-        Show-PendingWindowsAttention
-        Stop-DockerAfterEconomyRun
+function Start-EconomyApplication(
+    [bool]$DockerWasRunning = $false,
+    [bool]$AppWasRunning = $false
+) {
+    $keepResourcesForSetup = $false
+    try {
+        Adopt-LegacyData
+        Write-Step $Script:Text.Starting
+        Invoke-Compose @("up", "-d", "app")
+        Wait-Panel
+        Start-WindowsNotifier
+        $completed = Wait-EconomyRun
+        $keepResourcesForSetup = -not $completed -and $Script:EconomySetupPending
+    } finally {
+        if (-not $keepResourcesForSetup) {
+            Show-PendingWindowsAttention
+            Stop-DockerAfterEconomyRun `
+                -StopApp (-not $AppWasRunning) `
+                -StopDocker (-not $DockerWasRunning) `
+                -StopNotifier (-not $AppWasRunning)
+        }
     }
 }
 
@@ -1004,7 +1038,7 @@ function Invoke-ClaimerControl(
         Wait-DockerDesktop -Silent ($RequestedAction -in @("scheduled", "economy"))
         $appWasRunning = Test-LontriumContainerRunning
         if ($RequestedAction -eq "update") { Update-Application }
-        elseif ($RequestedAction -eq "economy") { Write-OtterAscii; Start-EconomyApplication }
+        elseif ($RequestedAction -eq "economy") { Write-OtterAscii; Start-EconomyApplication -DockerWasRunning $dockerWasRunning -AppWasRunning $appWasRunning }
         elseif ($RequestedAction -eq "scheduled") { Write-OtterAscii; Start-ScheduledApplication -DockerWasRunning $dockerWasRunning -AppWasRunning $appWasRunning }
         elseif ($RequestedAction -eq "source") { Write-OtterAscii; Start-SourceApplication }
         elseif ($RequestedAction -eq "source-build") { Write-OtterAscii; Start-SourceBuildApplication }

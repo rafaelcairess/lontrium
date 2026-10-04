@@ -307,6 +307,7 @@ class AliExpressClaimer(BaseClaimer):
 
         except Exception as exc:
             logger.exception("Fatal error during AliExpress check-in flow")
+            self.run_error = str(exc) or type(exc).__name__
             if cfg.notify_errors:
                 await self.notify(f"aliexpress failed: {exc}")
         finally:
@@ -1389,10 +1390,22 @@ class AliExpressClaimer(BaseClaimer):
             from src.gui.state import dashboard_state
 
             windows_event_id = dashboard_state.request_manual_action("login_required", "aliexpress")
+        def _skipped() -> bool:
+            return bool(
+                windows_event_id
+                and dashboard_state.manual_action_decision(windows_event_id) == "skip"
+            )
         try:
-            if await self._wait_for_vnc_login(self._login_ok, custom_msg=custom_msg):
+            if await self._wait_for_vnc_login(
+                self._login_ok,
+                interval=2,
+                custom_msg=custom_msg,
+                abort_fn=_skipped,
+            ):
                 self.log_signed_in(cfg.ae_email or "AliExpress User")
                 return True
+            if _skipped():
+                self.logger.info("AliExpress login was skipped by the user; continuing the run.")
         finally:
             if windows_event_id:
                 dashboard_state.resolve_manual_action(windows_event_id)
@@ -2132,4 +2145,5 @@ async def claim_aliexpress() -> dict:
         "user": claimer.user,
         "games": claimer.notify_games,
         "checkin": claimer.checkin_summary,
+        "runError": claimer.run_error,
     }

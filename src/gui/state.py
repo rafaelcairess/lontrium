@@ -137,7 +137,9 @@ def store_result_succeeded(store_key: str, result) -> bool:
             "collected", "collected_manual", "already_collected",
         }
     if not isinstance(result, dict):
-        return True
+        return False
+    if result.get("runError"):
+        return False
     outcomes = [
         _game_outcome(str(game.get("status", "")))
         for game in result.get("games") or []
@@ -214,12 +216,31 @@ class DashboardState:
         with self._lock:
             self._manual_actions.pop(event_id, None)
 
+    def decide_manual_action(self, event_id: str, action: str) -> bool:
+        """Record a validated user decision without exposing decided events again."""
+        if action != "skip":
+            return False
+        with self._lock:
+            event = self._manual_actions.get(event_id)
+            if not event or event["kind"] not in {"captcha", "login_required"}:
+                return False
+            event["decision"] = action
+            return True
+
+    def manual_action_decision(self, event_id: str | None) -> str | None:
+        if not event_id:
+            return None
+        with self._lock:
+            event = self._manual_actions.get(event_id)
+            return event.get("decision") if event else None
+
     def manual_actions(self, enabled: bool) -> dict:
         """Return allow-listed local helper events; CAPTCHA notices remain optional."""
         with self._lock:
             events = deepcopy([
                 event for event in self._manual_actions.values()
-                if enabled or event["kind"] == "stop_all"
+                if not event.get("decision")
+                and (enabled or event["kind"] == "stop_all")
             ])
         return {"enabled": bool(enabled), "events": events}
 

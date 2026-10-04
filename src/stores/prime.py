@@ -92,7 +92,9 @@ class PrimeGamingClaimer(BaseClaimer):
             await self.sleep(4)
 
             # Step 2: Make sure we are logged into Amazon
-            await self._ensure_logged_in()
+            if not await self._ensure_logged_in():
+                self.run_error = "login_required"
+                return
 
             # Step 3: Find and claim all available free games
             await self._claim_internal_games()
@@ -102,6 +104,7 @@ class PrimeGamingClaimer(BaseClaimer):
 
         except Exception as exc:
             logger.exception("Fatal error")
+            self.run_error = str(exc) or type(exc).__name__
             if cfg.notify_errors:
                 await self.notify(f"prime-gaming failed: {exc}")
         finally:
@@ -223,7 +226,7 @@ class PrimeGamingClaimer(BaseClaimer):
         logger.debug("Luna signed-in check: no account first name on the page")
         return False
 
-    async def _ensure_logged_in(self, silent_if_logged_in: bool = False) -> None:
+    async def _ensure_logged_in(self, silent_if_logged_in: bool = False) -> bool:
         """Check if logged in; if not, click 'Sign in' in a loop until logged in.
 
         Matches the JS pattern: sometimes after Amazon login completes,
@@ -250,7 +253,7 @@ class PrimeGamingClaimer(BaseClaimer):
         if await self._is_signed_in():
             if not silent_if_logged_in:
                 self.log_signed_in()
-            return
+            return True
             
         if silent_if_logged_in:
             logger.warning("Session lost mid-operation! Attempting re-login…")
@@ -309,7 +312,7 @@ class PrimeGamingClaimer(BaseClaimer):
                     logged_in = await self._wait_for_vnc_login(_vnc_check)
                     if not logged_in:
                         logger.warning("VNC login timed out – skipping.")
-                        return
+                        return False
 
             # Navigate back to claims page and re-check
             await self.page.get(URL_CLAIM)
@@ -317,7 +320,7 @@ class PrimeGamingClaimer(BaseClaimer):
 
             if await self._is_signed_in():
                 self.log_signed_in()
-                return
+                return True
 
         # Automated login didn't complete – ask the user to finish it via VNC.
         logger.warning("Automated Prime login did not complete – requesting manual VNC login.")
@@ -327,8 +330,9 @@ class PrimeGamingClaimer(BaseClaimer):
         )
         if await self._wait_for_vnc_login(self._is_signed_in, custom_msg=custom_msg):
             self.log_signed_in()
-            return
+            return True
         logger.warning("Prime login still not completed after VNC wait – skipping.")
+        return False
 
     async def _do_login(self) -> None:
         """Fill in email + password on the Amazon login page."""
@@ -932,7 +936,9 @@ class PrimeGamingClaimer(BaseClaimer):
                     # Navigate back to claims page and re-authenticate
                     await self.page.get(URL_CLAIM)
                     await self.sleep(3)
-                    await self._ensure_logged_in()
+                    if not await self._ensure_logged_in():
+                        self.run_error = "login_required"
+                        return
                     # Navigate back to the detail page after re-login
                     await self.page.get(full_detail_url)
                     await self.sleep(4)
@@ -1198,4 +1204,7 @@ async def claim_prime() -> dict:
     """Convenience entry point."""
     claimer = PrimeGamingClaimer()
     await claimer.run()
-    return {"store": "Prime Gaming", "user": claimer.user, "games": claimer.notify_games}
+    return {
+        "store": "Prime Gaming", "user": claimer.user,
+        "games": claimer.notify_games, "runError": claimer.run_error,
+    }

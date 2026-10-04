@@ -67,7 +67,7 @@ Source: "windows-notifier\bin\Release\net48\Lontrium.Notifier.exe"; DestDir: "{a
 Source: "windows-notifier\bin\Release\net48\Lontrium.Notifier.exe.config"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\Lontrium Control"; Filename: "{app}\Start-ClaimerControl.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"; AppUserModelID: "RafaelCaires.LontriumControl"
+Name: "{group}\Lontrium Control"; Filename: "{app}\Lontrium.Notifier.exe"; Parameters: "--open"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"; AppUserModelID: "RafaelCaires.LontriumControl"
 Name: "{autodesktop}\Lontrium Control"; Filename: "{app}\Start-ClaimerControl.cmd"; WorkingDir: "{app}"; IconFilename: "{app}\Lontrium.ico"; Tasks: desktopicon
 Name: "{group}\Uninstall Lontrium Control"; Filename: "{uninstallexe}"
 
@@ -82,6 +82,9 @@ Type: files; Name: "{group}\Uninstall Claimer Control.lnk"
 Root: HKCU; Subkey: "Software\Classes\lontrium"; ValueType: string; ValueName: ""; ValueData: "URL:Lontrium Control"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\lontrium"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\lontrium\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """powershell.exe"" -NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{app}\Start-ClaimerControl.ps1"" -Action update"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\lontrium-action"; ValueType: string; ValueName: ""; ValueData: "URL:Lontrium Control action"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\lontrium-action"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\lontrium-action\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Lontrium.Notifier.exe"" --toast-action ""%1"""; Flags: uninsdeletekey
 ; Keep the former protocol as a compatibility alias for installed dashboards.
 Root: HKCU; Subkey: "Software\Classes\claimer-control"; ValueType: string; ValueName: ""; ValueData: "URL:Lontrium Control"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\claimer-control"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Flags: uninsdeletekey

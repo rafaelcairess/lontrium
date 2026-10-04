@@ -94,6 +94,10 @@ class BaseClaimer:
         self.page: uc.Tab | None = None
         self.user: str | None = None
         self.notify_games: list[dict] = []
+        # Store entry points expose this separately from per-item failures.  An
+        # empty game list can legitimately mean "no giveaway", so callers must
+        # not infer that a fatal exception was a successful empty run.
+        self.run_error: str | None = None
 
     # ------------------------------------------------------------------
     # Browser lifecycle
@@ -507,7 +511,7 @@ class BaseClaimer:
         from src.core.notifier import notify as _notify
         await _notify(message, **kwargs)
 
-    async def _wait_for_vnc_login(self, check_fn, *, timeout: int | None = None, interval: int = 5, log_interval: int = 60, custom_msg: str | None = None) -> bool:
+    async def _wait_for_vnc_login(self, check_fn, *, timeout: int | None = None, interval: int = 5, log_interval: int = 60, custom_msg: str | None = None, abort_fn=None) -> bool:
         """Wait for manual VNC login.
 
         Polls every `interval` seconds, but only logs a waiting message every `log_interval` seconds.
@@ -531,8 +535,12 @@ class BaseClaimer:
         elapsed = 0
         last_log = 0
         while elapsed < timeout:
+            if abort_fn and abort_fn():
+                return False
             await asyncio.sleep(interval)
             elapsed += interval
+            if abort_fn and abort_fn():
+                return False
             if await check_fn():
                 return True
             
@@ -607,8 +615,22 @@ class BaseClaimer:
         async def _cleared() -> bool:
             return not await self._human_challenge_present()
 
+        def _skipped() -> bool:
+            return bool(
+                windows_event_id
+                and dashboard_state.manual_action_decision(windows_event_id) == "skip"
+            )
+
         try:
-            return await self._wait_for_vnc_login(_cleared, custom_msg=custom_msg)
+            cleared = await self._wait_for_vnc_login(
+                _cleared,
+                interval=2,
+                custom_msg=custom_msg,
+                abort_fn=_skipped,
+            )
+            if _skipped():
+                self.logger.info("%s was skipped by the user; continuing with the remaining stores.", label)
+            return cleared
         finally:
             if windows_event_id:
                 dashboard_state.resolve_manual_action(windows_event_id)

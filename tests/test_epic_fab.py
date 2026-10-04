@@ -151,3 +151,25 @@ class TestNotificationVocabulary:
         titles = re.findall(r'self\._vnc_notice\(\s*"([^"]+)"', self.SOURCE)
         assert titles, "no VNC prompts found, the scan stopped matching"
         assert all(t.startswith("Fab: ") for t in titles), titles
+
+
+class TestCheckoutSafety:
+    SOURCE = (Path(__file__).resolve().parent.parent / "src" / "stores" / "epic_fab.py").read_text(encoding="utf-8")
+
+    def test_does_not_force_unsafe_webgpu(self):
+        assert "--enable-unsafe-webgpu" not in self.SOURCE
+        assert "--ignore-gpu-blocklist" not in self.SOURCE
+
+    def test_cross_origin_checkout_uses_trusted_mouse_input(self):
+        checkout = self.SOURCE.split("async def _complete_checkout", 1)[1]
+        checkout = checkout.split("async def _click_buy_now", 1)[0]
+        assert "_trusted_checkout_click" in checkout
+        assert "dispatch_mouse_event" in self.SOURCE
+        assert "btn.click()" not in checkout
+
+    def test_checkout_security_challenge_is_detected(self):
+        detector = self.SOURCE.split("async def _checkout_challenge_present", 1)[1]
+        detector = detector.split("async def _trusted_checkout_click", 1)[0]
+        assert "complete a security check" in detector
+        assert "one more step" in detector
+        assert '_wait_out_challenge("Fab checkout")' in self.SOURCE

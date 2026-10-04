@@ -34,6 +34,7 @@ class GOGClaimer(BaseClaimer):
             # Step 3: Make sure we are logged in (or wait for VNC manual login)
             if not await self._ensure_logged_in():
                 logger.error("Aborting GOG claim flow due to login failure.")
+                self.run_error = "login_required"
                 return
 
             # Step 4: Look for a free game giveaway and claim it
@@ -41,6 +42,7 @@ class GOGClaimer(BaseClaimer):
 
         except Exception as exc:
             logger.exception("Fatal error")
+            self.run_error = str(exc) or type(exc).__name__
             # Send a notification about the crash if notifications are enabled
             if cfg.notify_errors:
                 await self.notify(f"gog failed: {exc}")
@@ -670,4 +672,7 @@ async def claim_gog() -> dict:
     """Convenience entry point."""
     claimer = GOGClaimer()
     await claimer.run()
-    return {"store": "GOG", "user": claimer.user, "games": claimer.notify_games}
+    return {
+        "store": "GOG", "user": claimer.user,
+        "games": claimer.notify_games, "runError": claimer.run_error,
+    }

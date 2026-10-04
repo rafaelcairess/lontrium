@@ -82,6 +82,14 @@ class TestClaimHonesty:
         assert "_cdp_click_in_purchase_frame" in checkout
         assert "if (btn) { btn.click(); return true; }" not in checkout
 
+    def test_legacy_checkout_also_uses_trusted_mouse_clicks(self):
+        checkout = self.SOURCE.split("async def _handle_purchase_iframe", 1)[1]
+        checkout = checkout.split("async def _find_purchase_frame", 1)[0]
+        assert '_cdp_click_in_purchase_frame(ctx_id, "place order")' in checkout
+        assert 'ctx_id, "i accept", alternate_text="i agree"' in checkout
+        assert "po.click()" not in checkout
+        assert "agree.click()" not in checkout
+
     def test_cross_origin_security_check_is_detected(self):
         detector = self.SOURCE.split("async def _human_challenge_present", 1)[1]
         detector = detector.split("async def run", 1)[0]

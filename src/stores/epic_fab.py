@@ -6,6 +6,7 @@ on the Epic browser profile.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -46,26 +47,38 @@ function () {
 }
 """
 
-CHECKOUT_CLICK_JS = """
+CHECKOUT_CLICK_POINT_JS = """
 function () {
     const btn = [...this.querySelectorAll('button, a[role=button]')]
         .find(b => /add to library|place order|get now/i.test((b.innerText || '').trim()));
-    if (!btn || btn.disabled) return JSON.stringify({clicked: false});
-    btn.click();
-    return JSON.stringify({clicked: true, label: (btn.innerText || '').trim()});
+    if (!btn || btn.disabled) return JSON.stringify({present: false});
+    btn.scrollIntoView({block: 'center', behavior: 'instant'});
+    const rect = btn.getBoundingClientRect();
+    return JSON.stringify({
+        present: rect.width > 0 && rect.height > 0,
+        label: (btn.innerText || '').trim(),
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+    });
 }
 """
 
 # Add to library then asks to waive the EU right of withdrawal, the order waits on it.
-CHECKOUT_CONSENT_JS = """
+CHECKOUT_CONSENT_POINT_JS = """
 function () {
     const text = this.body ? (this.body.innerText || '') : '';
     if (!/right of withdrawal/i.test(text)) return JSON.stringify({present: false});
     const btn = [...this.querySelectorAll('button')]
         .find(b => /^(i accept|accept|agree)$/i.test((b.innerText || '').trim()));
-    if (!btn || btn.disabled) return JSON.stringify({present: true, clicked: false});
-    btn.click();
-    return JSON.stringify({present: true, clicked: true, label: (btn.innerText || '').trim()});
+    if (!btn || btn.disabled) return JSON.stringify({present: true, clickable: false});
+    btn.scrollIntoView({block: 'center', behavior: 'instant'});
+    const rect = btn.getBoundingClientRect();
+    return JSON.stringify({
+        present: true, clickable: rect.width > 0 && rect.height > 0,
+        label: (btn.innerText || '').trim(),
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+    });
 }
 """
 
@@ -182,14 +195,9 @@ class FabClaimer(BaseClaimer):
         """Main entry point for the Fab claiming flow."""
         logger.debug("Starting Fab claiming flow")
         try:
-            # Checkout fronts hCaptcha, which software rendering triggers. Same flags as epic.py.
-            await self.start_browser(
-                force_headful=True,
-                extra_args=[
-                    "--ignore-gpu-blocklist",
-                    "--enable-unsafe-webgpu",
-                ],
-            )
+            # Let Chrome select its renderer. Unsafe WebGPU can saturate the
+            # container's CPU when it falls back to software rendering.
+            await self.start_browser(force_headful=True)
             await self.page.get(URL_FREE)
             await self.sleep(5)
 
@@ -202,6 +210,7 @@ class FabClaimer(BaseClaimer):
 
             if not await self._ensure_logged_in():
                 logger.error("Aborting Fab claim flow due to login failure.")
+                self.run_error = "login_required"
                 return
 
             for item in listings:
@@ -211,6 +220,7 @@ class FabClaimer(BaseClaimer):
 
         except Exception as exc:
             logger.exception("Fatal error during Fab flow")
+            self.run_error = str(exc) or type(exc).__name__
             if cfg.notify_errors:
                 await self.notify(f"{self.store_name} failed: {exc}")
         finally:
@@ -679,6 +689,64 @@ class FabClaimer(BaseClaimer):
             logger.debug("Could not evaluate inside the checkout frame: %s", exc)
             return None
 
+    async def _checkout_challenge_present(self) -> bool:
+        """Detect security interstitials rendered inside Epic's checkout frame."""
+        document = await self._checkout_document()
+        if document is None:
+            return False
+        state = await self._checkout_eval(document, CHECKOUT_STATE_JS) or {}
+        text = " ".join((state.get("text") or "", *(state.get("buttons") or []))).lower()
+        return any(marker in text for marker in (
+            "complete a security check", "one more step", "verify you are human",
+            "security challenge", "captcha",
+        ))
+
+    async def _human_challenge_present(self) -> bool:
+        if await super()._human_challenge_present():
+            return True
+        return await self._checkout_challenge_present()
+
+    async def _trusted_checkout_click(self, point: dict) -> bool:
+        """Turn a frame-local button centre into trusted page mouse input."""
+        if not point.get("present") or point.get("clickable") is False:
+            return False
+        frame_raw = await self.page.evaluate("""
+            JSON.stringify((() => {
+                const frame = document.querySelector(
+                    '#webPurchaseContainer iframe, iframe[src*="/payment/web/purchase"]'
+                );
+                if (!frame) return null;
+                const rect = frame.getBoundingClientRect();
+                return {x: rect.left, y: rect.top, width: rect.width, height: rect.height};
+            })())
+        """)
+        try:
+            frame = json.loads(frame_raw) if isinstance(frame_raw, str) else None
+            x = float(frame["x"]) + float(point["x"])
+            y = float(frame["y"]) + float(point["y"])
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            return False
+        if not (frame["x"] <= x <= frame["x"] + frame["width"]):
+            return False
+        if not (frame["y"] <= y <= frame["y"] + frame["height"]):
+            return False
+        try:
+            await self.page.send(uc.cdp.input_.dispatch_mouse_event(type_="mouseMoved", x=x, y=y))
+            await asyncio.sleep(0.05)
+            await self.page.send(uc.cdp.input_.dispatch_mouse_event(
+                type_="mousePressed", x=x, y=y,
+                button=uc.cdp.input_.MouseButton("left"), click_count=1,
+            ))
+            await asyncio.sleep(0.1)
+            await self.page.send(uc.cdp.input_.dispatch_mouse_event(
+                type_="mouseReleased", x=x, y=y,
+                button=uc.cdp.input_.MouseButton("left"), click_count=1,
+            ))
+            return True
+        except Exception as exc:
+            logger.warning("Trusted Fab checkout click failed: %s", exc)
+            return False
+
     async def _complete_checkout(self) -> bool:
         """Press "Add to library" in Epic's checkout frame."""
         document = await self._checkout_document()
@@ -689,8 +757,15 @@ class FabClaimer(BaseClaimer):
         state = await self._checkout_eval(document, CHECKOUT_STATE_JS) or {}
         logger.debug("Checkout frame: %r buttons=%r", (state.get("text") or "")[:120], state.get("buttons"))
 
-        result = await self._checkout_eval(document, CHECKOUT_CLICK_JS) or {}
-        if not result.get("clicked"):
+        if await self._human_challenge_present():
+            if not await self._wait_out_challenge("Fab checkout"):
+                return False
+            document = await self._checkout_document()
+            if document is None:
+                return False
+
+        result = await self._checkout_eval(document, CHECKOUT_CLICK_POINT_JS) or {}
+        if not await self._trusted_checkout_click(result):
             logger.debug("No add-to-library button in the checkout frame.")
             return False
         logger.debug("Clicked %r in the checkout frame.", result.get("label"))
@@ -700,14 +775,20 @@ class FabClaimer(BaseClaimer):
         document = await self._checkout_document()
         if document is None:
             return True
-        consent = await self._checkout_eval(document, CHECKOUT_CONSENT_JS) or {}
+        if await self._human_challenge_present():
+            if not await self._wait_out_challenge("Fab checkout"):
+                return False
+            document = await self._checkout_document()
+            if document is None:
+                return False
+        consent = await self._checkout_eval(document, CHECKOUT_CONSENT_POINT_JS) or {}
         if not consent.get("present"):
             await self.sleep(6)
             return True
         if not cfg.fab_accept_eula:
             logger.warning("Epic asks to waive the right of withdrawal and FAB_ACCEPT_EULA is off.")
             return False
-        if not consent.get("clicked"):
+        if not await self._trusted_checkout_click(consent):
             logger.debug("Right-of-withdrawal dialog is open but has no usable accept button: %r", consent)
             return False
         logger.debug("Accepted the right-of-withdrawal waiver (%r).", consent.get("label"))
@@ -775,4 +856,7 @@ async def claim_fab() -> dict:
     """Convenience entry point."""
     claimer = FabClaimer()
     await claimer.run()
-    return {"store": "Fab", "user": claimer.user, "games": claimer.notify_games}
+    return {
+        "store": "Fab", "user": claimer.user,
+        "games": claimer.notify_games, "runError": claimer.run_error,
+    }

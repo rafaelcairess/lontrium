@@ -131,6 +131,7 @@ class EpicGamesClaimer(BaseClaimer):
             # Step 1: Make sure we are logged in
             if not await self._ensure_logged_in():
                 logger.error("Aborting Epic Games flow due to login failure.")
+                self.run_error = "login_required"
                 if cfg.notify_errors:
                     await self.notify("epic-games: could not sign in, no games were claimed.")
                 return
@@ -165,6 +166,7 @@ class EpicGamesClaimer(BaseClaimer):
 
         except Exception as exc:
             logger.exception("Fatal error")
+            self.run_error = str(exc) or type(exc).__name__
             if cfg.notify_errors:
                 await self.notify(f"epic-games failed: {exc}")
         finally:
@@ -1366,27 +1368,14 @@ class EpicGamesClaimer(BaseClaimer):
                                 input.value = '{pin}';
                                 input.dispatchEvent(new Event('input', {{ bubbles: true }}));
                             }}
-                            const btns = [...document.querySelectorAll('button')];
-                            const cont = btns.find(b => b.innerText && b.innerText.toLowerCase().includes('continue'));
-                            if (cont) cont.click();
                         }})()
                     """)
+                    await self._cdp_click_in_purchase_frame(ctx_id, "continue")
                     await self.sleep(2)
 
             # Click "Place Order" (wait for it to not be in loading state)
             for attempt in range(8):
-                clicked = await self._eval_in_frame(ctx_id, """
-                    (() => {
-                        const btns = [...document.querySelectorAll('button')];
-                        const po = btns.find(b =>
-                            b.innerText &&
-                            b.innerText.toLowerCase().includes('place order') &&
-                            !b.querySelector('.payment-loading--loading')
-                        );
-                        if (po && !po.disabled) { po.click(); return true; }
-                        return false;
-                    })()
-                """)
+                clicked = await self._cdp_click_in_purchase_frame(ctx_id, "place order")
                 if clicked:
                     logger.debug("Clicked 'Place Order' for '%s'", title)
                     break
@@ -1396,18 +1385,9 @@ class EpicGamesClaimer(BaseClaimer):
 
             # Handle "I Accept" / "I Agree" button (EU accounts only)
             # JS: const btnAgree = iframe.locator('button:has-text("I Accept")');
-            await self._eval_in_frame(ctx_id, """
-                (() => {
-                    const btns = [...document.querySelectorAll('button')];
-                    const agree = btns.find(b =>
-                        b.innerText && (
-                            b.innerText.toLowerCase().includes('i accept') ||
-                            b.innerText.toLowerCase().includes('i agree')
-                        )
-                    );
-                    if (agree) agree.click();
-                })()
-            """)
+            await self._cdp_click_in_purchase_frame(
+                ctx_id, "i accept", alternate_text="i agree"
+            )
 
             # Wait for order confirmation on the MAIN page
             # Epic shows either "Thanks for your order!" or "It's all yours" dialog
@@ -1508,7 +1488,8 @@ class EpicGamesClaimer(BaseClaimer):
                     const label = (candidate.textContent || '')
                         .replace(/\\s+/g, ' ').trim().toLowerCase();
                     const rect = candidate.getBoundingClientRect();
-                    return !candidate.disabled && rect.width > 0 && rect.height > 0
+                    return !candidate.disabled && !candidate.querySelector('.payment-loading--loading')
+                        && rect.width > 0 && rect.height > 0
                         && (label.includes(wanted)
                             || (alternate && label.includes(alternate)));
                 }});
@@ -1593,4 +1574,7 @@ async def claim_epic() -> dict:
     """Convenience entry point."""
     claimer = EpicGamesClaimer()
     await claimer.run()
-    return {"store": "Epic Games", "user": claimer.user, "games": claimer.notify_games}
+    return {
+        "store": "Epic Games", "user": claimer.user,
+        "games": claimer.notify_games, "runError": claimer.run_error,
+    }

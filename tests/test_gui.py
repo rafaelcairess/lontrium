@@ -144,6 +144,11 @@ def test_failed_game_result_remains_pending_but_owned_or_no_offer_complete():
     assert store_result_succeeded("gog", {"games": []})
 
 
+def test_fatal_or_missing_store_result_remains_pending():
+    assert not store_result_succeeded("epic", {"games": [], "runError": "browser crashed"})
+    assert not store_result_succeeded("epic", None)
+
+
 def test_manual_action_events_are_safe_deduplicated_and_resolved():
     state = DashboardState()
 
@@ -163,8 +168,15 @@ def test_manual_action_events_are_safe_deduplicated_and_resolved():
     assert "url" not in json.dumps(payload).lower()
     assert state.manual_actions(False) == {"enabled": False, "events": []}
 
+    assert not state.decide_manual_action("0" * 32, "skip")
+    assert not state.decide_manual_action(event_id, "invalid")
+    assert state.decide_manual_action(event_id, "skip")
+    assert state.manual_action_decision(event_id) == "skip"
+    assert state.manual_actions(True)["events"] == []
+
     state.resolve_manual_action(event_id)
     assert state.manual_actions(True)["events"] == []
+    assert state.manual_action_decision(event_id) is None
 
 
 def test_failed_store_publishes_one_native_notification_per_run():
@@ -489,6 +501,12 @@ def test_dashboard_http_api_and_csrf():
     async def manual_actions():
         return {"enabled": True, "events": [{"id": "safe-id", "kind": "captcha", "store": "epic"}]}
 
+    manual_action_calls = []
+
+    async def manual_action(event_id, action):
+        manual_action_calls.append((event_id, action))
+        return {"accepted": event_id == "a" * 32 and action == "skip"}
+
     async def run(_stores, mode=None, local_date=None, utc_offset_minutes=None):
         if mode == "scheduled-retry":
             if local_date == "complete":
@@ -518,6 +536,7 @@ def test_dashboard_http_api_and_csrf():
         setup_callback=setup,
         update_callback=update,
         manual_actions_callback=manual_actions,
+        manual_action_callback=manual_action,
         run_callback=run,
         stop_callback=stop,
         activity_callback=activity,
@@ -591,6 +610,26 @@ def test_dashboard_http_api_and_csrf():
         with urlopen(allowed, timeout=3) as response:
             assert response.status == 202
             assert json.load(response)["accepted"] is True
+
+        skip_request = Request(
+            f"{base}/api/windows-events/action",
+            data=json.dumps({"id": "a" * 32, "action": "skip"}).encode(),
+            headers={"Content-Type": "application/json", "X-FGC-Token": server.csrf_token},
+            method="POST",
+        )
+        with urlopen(skip_request, timeout=3) as response:
+            assert json.load(response) == {"accepted": True}
+        assert manual_action_calls == [("a" * 32, "skip")]
+
+        invalid_skip = Request(
+            f"{base}/api/windows-events/action",
+            data=json.dumps({"id": "invalid", "action": "skip"}).encode(),
+            headers={"Content-Type": "application/json", "X-FGC-Token": server.csrf_token},
+            method="POST",
+        )
+        with pytest.raises(HTTPError) as error:
+            urlopen(invalid_skip, timeout=3)
+        assert error.value.code == 400
 
         stop_request = Request(
             f"{base}/api/stop",

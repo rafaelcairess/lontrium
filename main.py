@@ -760,6 +760,9 @@ async def main() -> None:
         async def dashboard_manual_actions() -> dict:
             return dashboard_state.manual_actions(cfg.windows_notifications)
 
+        async def dashboard_manual_action(event_id: str, action: str) -> dict:
+            return {"accepted": dashboard_state.decide_manual_action(event_id, action)}
+
         async def dashboard_run(
             stores: list[str] | None,
             mode: str | None = None,
@@ -882,6 +885,7 @@ async def main() -> None:
             setup_callback=dashboard_setup,
             update_callback=dashboard_update,
             manual_actions_callback=dashboard_manual_actions,
+            manual_action_callback=dashboard_manual_action,
             run_callback=dashboard_run,
             stop_callback=dashboard_stop,
             activity_callback=dashboard_activity,

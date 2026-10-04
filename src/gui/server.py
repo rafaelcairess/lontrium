@@ -33,6 +33,7 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         setup_callback: Callable[[dict], Awaitable[dict]],
         update_callback: Callable[[], Awaitable[dict]],
         manual_actions_callback: Callable[[], Awaitable[dict]],
+        manual_action_callback: Callable[[str, str], Awaitable[dict]],
         run_callback: Callable[..., Awaitable[bool | dict]],
         stop_callback: Callable[[], Awaitable[dict]],
         activity_callback: Callable[[], Awaitable[dict]],
@@ -46,6 +47,7 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         self.setup_callback = setup_callback
         self.update_callback = update_callback
         self.manual_actions_callback = manual_actions_callback
+        self.manual_action_callback = manual_action_callback
         self.run_callback = run_callback
         self.stop_callback = stop_callback
         self.activity_callback = activity_callback
@@ -209,6 +211,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._json(self.server.await_result(self.server.stop_callback()), HTTPStatus.ACCEPTED)
             elif path == "/api/activity":
                 self._json(self.server.await_result(self.server.activity_callback()))
+            elif path == "/api/windows-events/action":
+                event_id = payload.get("id")
+                action = payload.get("action")
+                if not isinstance(event_id, str) or not re.fullmatch(r"[a-f0-9]{32}", event_id):
+                    raise ValueError("Invalid event identifier")
+                if action != "skip":
+                    raise ValueError("Invalid event action")
+                result = self.server.await_result(
+                    self.server.manual_action_callback(event_id, action)
+                )
+                self._json(
+                    result,
+                    HTTPStatus.OK if result.get("accepted") else HTTPStatus.NOT_FOUND,
+                )
             else:
                 self._json({"error": "Não encontrado"}, HTTPStatus.NOT_FOUND)
         except ValueError as exc:
@@ -232,6 +248,7 @@ def start_dashboard(
     setup_callback: Callable[[dict], Awaitable[dict]],
     update_callback: Callable[[], Awaitable[dict]],
     manual_actions_callback: Callable[[], Awaitable[dict]],
+    manual_action_callback: Callable[[str, str], Awaitable[dict]],
     run_callback: Callable[..., Awaitable[bool | dict]],
     stop_callback: Callable[[], Awaitable[dict]],
     activity_callback: Callable[[], Awaitable[dict]],
@@ -247,6 +264,7 @@ def start_dashboard(
         setup_callback,
         update_callback,
         manual_actions_callback,
+        manual_action_callback,
         run_callback,
         stop_callback,
         activity_callback,
