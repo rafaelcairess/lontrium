@@ -340,6 +340,8 @@ Describe "Windows Task Scheduler automation" {
     }
 
     BeforeEach {
+        $script:NotifierPath = Join-Path $TestDrive "Lontrium.Notifier.exe"
+        Set-Content -LiteralPath $script:NotifierPath -Value "test helper"
         Mock Get-DashboardJson {
             [pscustomobject]@{values = [pscustomobject]@{
                 WINDOWS_ECONOMY_SCHEDULE = $true
@@ -504,7 +506,9 @@ Describe "Scheduled collection ownership" {
 
     It "releases owned resources when dashboard polling throws" {
         Mock Wait-ScheduledRun { throw "dashboard unavailable" }
-        { Start-ScheduledApplication -DockerWasRunning $false -AppWasRunning $false } | Should Throw
+        $threw = $false
+        try { Start-ScheduledApplication -DockerWasRunning $false -AppWasRunning $false } catch { $threw = $true }
+        if (-not $threw) { throw "The dashboard polling failure should propagate" }
         Assert-MockCalled Stop-DockerAfterEconomyRun -Times 1 -Exactly -Scope It -ParameterFilter {
             $StopApp -and $StopDocker -and $StopNotifier
         }
