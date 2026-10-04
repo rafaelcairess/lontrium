@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.4] - 2026-10-04
+
+### Added
+- CAPTCHA and expired-login notifications now offer **Open browser** and **Skip now** actions. Skipping abandons only the current attempt, continues the remaining stores and retries the pending store at the next scheduled time.
+- The Windows notification helper now carries the Lontrium icon and replaces older notifications for the same store instead of accumulating duplicates.
+
+### Changed
+- Windows Task Scheduler launches the native windowless helper instead of `powershell.exe`, preventing scheduled runs from opening a terminal or stealing focus from full-screen applications.
+- AliExpress login recovery now uses a normal Windows notification instead of a topmost modal dialog.
+
+### Fixed
+- Fatal store errors are no longer mistaken for successful empty results, so incomplete stores remain pending.
+- Scheduled and legacy economy runs always release resources they started after failures or timeouts while preserving Docker resources owned by other applications.
+- Epic and Fab checkout recovery handles stalled frames, browser errors and challenge retries more reliably.
+
 ## [1.6.3] - 2026-09-24
 
 ### Changed

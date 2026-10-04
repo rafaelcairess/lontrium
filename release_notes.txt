@@ -1,8 +1,12 @@
+### Added
+- CAPTCHA and expired-login notifications now include **Open browser** and **Skip now** actions. A skipped store remains pending for the next scheduled time while the remaining stores continue.
+- Notifications use the Lontrium icon and replace older alerts for the same store instead of accumulating duplicates.
+
 ### Changed
-- Epic's browser no longer forces WebGPU software rendering inside Docker, and packaged containers are capped at two CPUs by default.
-- The unattended focus guard remains active throughout scheduled runs so Docker Desktop cannot interrupt a full-screen application after startup.
+- Scheduled Windows runs start through the native windowless helper, so no CMD or PowerShell window interrupts full-screen applications.
+- AliExpress login recovery uses a normal Windows notification instead of a topmost modal dialog.
 
 ### Fixed
-- Epic security checks inside the checkout frame now trigger the native CAPTCHA notification instead of leaving the run apparently stuck.
-- Epic's cross-origin **Add to library** button now receives trusted browser input rather than an ignored synthetic click.
-- Current-run status no longer includes the previous run's completion time, and dashboard polling no longer floods debug logs.
+- Fatal store errors remain pending rather than being recorded as successful empty runs.
+- Scheduled cleanup reliably releases only resources started by Lontrium after failures and timeouts.
+- Epic and Fab checkout recovery handles stalled frames, browser failures and challenge retries more reliably.
