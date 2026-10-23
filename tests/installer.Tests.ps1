@@ -17,6 +17,8 @@ Describe "Lontrium Control launcher flow" {
         Mock Test-LontriumContainerRunning { $false }
         Mock Test-PanelReady { $false }
         Mock Test-SmartWakeCompleteToday { $false }
+        Mock Get-HostResourceGate { [pscustomobject]@{ Defer = $false } }
+        Mock Show-ResourceDeferredNotification {}
         Mock Apply-PendingInstallerMode { $false }
         Mock Ensure-WindowsScheduleMigration { $false }
         Mock Update-ScheduleConfigurationSignature { $false }
@@ -96,6 +98,25 @@ Describe "Lontrium Control launcher flow" {
         Assert-MockCalled Start-ScheduledApplication -Times 1 -Exactly -Scope It -ParameterFilter {
             $DockerWasRunning -and $AppWasRunning
         }
+    }
+
+    It "defers a scheduled launch before inspecting or starting Docker when resources are busy" {
+        Mock Get-HostResourceGate {
+            [pscustomobject]@{
+                Defer = $true
+                NextText = "23/10 às 19:00"
+                ReasonCode = "memory"
+                LastSlot = $false
+            }
+        }
+        Mock Test-DockerCommandAvailable { throw "Docker must not be inspected when resources are busy" }
+
+        $result = Invoke-ClaimerControl -RequestedAction scheduled
+
+        if ($result -ne 0) { throw "Expected a deferred scheduled launch" }
+        Assert-MockCalled Show-ResourceDeferredNotification -Times 1 -Exactly -Scope It
+        Assert-MockCalled Wait-DockerDesktop -Times 0 -Exactly -Scope It
+        Assert-MockCalled Start-ScheduledApplication -Times 0 -Exactly -Scope It
     }
 
     It "skips a completed day before inspecting or starting Docker" {
