@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **O Lontrium Control v1.4.0 já está disponível.** Baixe o instalador acima e confira o arquivo [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **O Lontrium Control v1.6.5 é a versão atual.** Baixe o instalador acima e confira o arquivo [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="images/05-dashboard.png" alt="Painel do Lontrium Control mostrando jogos e resultados do AliExpress e da Shopee" width="1100">
@@ -39,6 +39,7 @@
 - Coleta moedas diárias do AliExpress e da Shopee e mostra o resultado e o saldo.
 - Informa o resultado real de cada execução, não apenas uma contagem genérica.
 - No Windows, usa tarefas nativas nos horários escolhidos (12:00, 16:00 e 19:00 por padrão), recupera horários perdidos e libera depois a memória do Docker/WSL.
+- Antes de iniciar uma coleta automática, verifica RAM, CPU, GPU e o aplicativo pesado em primeiro plano. Se o computador estiver ocupado, o Docker nem é iniciado e a coleta fica para o próximo horário; no último horário do dia, ela ainda é tentada sob pressão moderada, exceto em memória crítica.
 - Não repete lojas já concluídas no dia; horários posteriores tentam somente falhas, login/CAPTCHA ou lojas ainda não executadas.
 - Abre um navegador visual quando uma loja exige login ou confirmação manual.
 - Mantém painel, configurações, banco e sessões do navegador no seu computador.

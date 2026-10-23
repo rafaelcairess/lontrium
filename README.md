@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **Lontrium Control v1.4.0 is available now.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **Lontrium Control v1.6.5 is the current release.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="docs/images/05-dashboard.png" alt="Lontrium Control dashboard showing game, AliExpress and Shopee results" width="1100">
@@ -40,6 +40,7 @@
 - Shows the actual result of each run instead of only a generic success count.
 - On Windows, uses native scheduled tasks at the chosen times (12:00, 16:00 and 19:00 by default), catches up missed times, then releases Docker/WSL memory.
 - Before a scheduled Windows run, checks host RAM, CPU, GPU and the active fullscreen/high-load application. If the machine is busy, Docker is not started and the run is deferred to the next configured time; the final daily slot runs through soft pressure, but not critical low-memory pressure.
+- The resource check is automatic: users do not need to maintain a protected-games list. The next scheduled time is shown in the Windows notification when a run is deferred.
 - Skips stores already completed that day and retries only stores that failed, need login/CAPTCHA or have not run yet.
 - Opens a visual browser whenever a store requires manual login or confirmation.
 - Keeps the dashboard, settings, database and browser sessions on your computer.
@@ -96,6 +97,8 @@ You can revisit the complete introduction later from **Settings → Introduction
 ```text
 Windows Task Scheduler (configured daily times + missed-run catch-up)
       │
+      ├─ checks host resources before starting Docker
+      ├─ defers to the next configured time when the computer is busy
       ├─ starts Docker Desktop and the local container only when needed
       ├─ runs stores without a successful result for the current local day
       └─ stops resources it started after the run
@@ -151,6 +154,7 @@ Browser login is the recommended default, so the assistant does not request pass
 - Use **Browser** when a store asks for login, CAPTCHA or manual confirmation.
 - Enable **Windows notifications for manual actions** to receive one local alert per detected CAPTCHA. The helper reads only a secret-free event from `127.0.0.1`; it does not send account data anywhere.
 - Use **Settings** to change stores, accounts, notifications or scheduling.
+- Automatic runs protect interactive work: a detected high-load fullscreen application, CPU/GPU pressure or low RAM postpones the run to the next configured time. The final daily slot is still attempted unless memory pressure is critical.
 - Updates are offered in the dashboard and preserve the local volume.
 
 When upgrading from the older Free Games Claimer layout, the launcher may ask whether it should reuse existing local accounts and sessions. Choose **Yes** unless you intentionally want a clean profile. Lontrium changes the container and application image, not the selected persistent data volume.
@@ -175,6 +179,7 @@ The installer is the supported path for end users. Source builds, architecture a
 - [`.env.example`](./.env.example) — complete source-build configuration reference
 - [`MODIFICATIONS.md`](./MODIFICATIONS.md) — implementation history and technical differences
 - [`CHANGELOG.md`](./CHANGELOG.md) — release changes
+- [`docs/RESOURCE_GUARD_VERIFICATION.md`](./docs/RESOURCE_GUARD_VERIFICATION.md) — resource-protection behavior and local verification
 
 The test suite covers store logic, the local API, secret handling, translations, setup flow and the Windows launcher.
 

@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.5] - 2026-10-23
+
+### Added
+- Automatic host resource protection for scheduled Windows runs. Lontrium checks RAM, CPU, GPU and the active high-load fullscreen application before starting Docker, without requiring a manual protected-games list.
+- Deferred-run notifications show the detected pressure and the next configured schedule time.
+
+### Changed
+- Normal resource pressure defers a run to the next configured time. The final daily slot runs through soft pressure, while critical low-memory pressure remains blocked.
+- The Windows launcher stores the synchronized schedule locally so it can make the preflight decision before Docker starts.
+
 ## [1.6.4] - 2026-10-04
 
 ### Added
