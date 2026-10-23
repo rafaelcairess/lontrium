@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **Lontrium Control v1.6.5 is the current release.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **Lontrium Control v1.7.0 is the current release.** Download the installer above and verify it with [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="docs/images/05-dashboard.png" alt="Lontrium Control dashboard showing game, AliExpress and Shopee results" width="1100">
@@ -90,7 +90,7 @@ The assistant asks six practical questions instead of exposing the full environm
 
 After **Finish and run**, Lontrium opens the dashboard and starts the selected services. If a store needs authentication, open **Browser**, finish the login on the official page and return to the dashboard. The browser profile is persistent, so this is normally required only on first use or after the store expires its own session.
 
-You can revisit the complete introduction later from **Settings → Introduction**. It opens in preview mode and does not overwrite settings or start a run.
+You can revisit the complete introduction later from **Settings → Help**. Help explains sessions, optional credentials and store dependencies; the introduction opens in preview mode and does not overwrite settings or start a run.
 
 ## How it works
 
@@ -171,6 +171,14 @@ The normal shortcut still opens the dashboard on demand. In automatic economy mo
 | A claim failed | Retry the individual store and include the relevant sanitized log when opening an issue. |
 
 For bugs and feature requests, use [GitHub Issues](https://github.com/rafaelcairess/lontrium/issues). Never publish passwords, cookies, TOTP keys, complete network captures or unsanitized screenshots.
+
+### Login, Help and credentials
+
+Browser login is the recommended path. Lontrium stores the resulting session in the local browser profile and reuses it until the official store expires it. Saved email, username, password and TOTP fields are optional autofill helpers; a blank secret field preserves the existing value.
+
+Shopee is browser-session only. Fab reuses the Epic Games session and does not need separate credentials. GamerPower can enable optional Fanatical, itch.io and IndieGala sources. When AliExpress remembers your email and shows only the password field, Lontrium keeps the remembered email, attempts the password and waits for a real session confirmation. CAPTCHA, Google login and security-code steps remain in Browser for manual completion.
+
+Settings now shows only selected store modules. Use **Settings → Help** to reopen the six-step introduction without changing settings or starting a run. The same area explains Apprise URL, Discord webhook, session persistence and store dependencies.
 
 ## For contributors
 

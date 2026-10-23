@@ -16,6 +16,7 @@ from src.stores.aliexpress import (
     _as_int,
     _field_by_leaf,
     _flatten_payload,
+    should_fill_login_field,
 )
 
 # Shape of a real mtop.aliexpress.coin.execute response (values from a live run).
@@ -407,6 +408,18 @@ class TestLiveCoinCaptureControlFlow:
 
 
 class TestLoginState:
+    @pytest.mark.parametrize(
+        ("current", "expected", "should_fill"),
+        [
+            ("", "user@example.com", True),
+            (None, "user@example.com", True),
+            ("remembered@example.com", "user@example.com", False),
+            ("filled-password", "secret", False),
+        ],
+    )
+    def test_remembered_login_values_are_not_overwritten(self, current, expected, should_fill):
+        assert should_fill_login_field(current, expected) is should_fill
+
     def test_coin_init_reports_authenticated_session(self):
         payload = {
             "data": {"groupResponse": {"alreadyLogin": True, "guest": False}},

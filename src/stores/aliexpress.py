@@ -27,6 +27,10 @@ URL_COINS = "https://m.aliexpress.com/p/coin-index/index.html"
 URL_HOME = "https://www.aliexpress.com/"
 URL_MHOME = "https://m.aliexpress.com/"
 
+def should_fill_login_field(current_value: str | None, expected_value: str | None) -> bool:
+    """Only fill an empty login field; never overwrite a value remembered by the browser."""
+    return not str(current_value or "").strip() and bool(str(expected_value or "").strip())
+
 # Coin balance comes from this mtop API (the DOM shows only animated digits).
 COIN_API_PREFIX = "https://acs.aliexpress.com/h5/mtop.aliexpress.coin.execute/"
 
@@ -1186,6 +1190,25 @@ class AliExpressClaimer(BaseClaimer):
             self.logger.debug("JS login-input fallback failed: %s", e)
         return None
 
+    async def _visible_login_value(self, kind: str) -> str:
+        """Read a visible email/password value without exposing it in logs."""
+        selector = 'input[type="password"]' if kind == "password" else (
+            'input[data-fgc-login="1"], input[type="email"], input[type="tel"], '
+            'input[placeholder*="mail" i], input[placeholder*="phone" i], '
+            'input[placeholder*="telefon" i], input[name*="email" i], input[id*="email" i]'
+        )
+        try:
+            value = await self.page.evaluate(
+                f"""(() => {{
+                    const el = [...document.querySelectorAll({json.dumps(selector)})]
+                      .find(item => item.offsetParent !== null);
+                    return el ? (el.value || '') : '';
+                }})()"""
+            )
+            return str(value or "")
+        except Exception:
+            return ""
+
     async def _click_button_by_text(self, texts: list[str]) -> bool:
         """Trusted-click the visible button/link whose exact text matches one of
         `texts`. Marks the real element (closest button/[role=button]/a) in JS,
@@ -1311,10 +1334,14 @@ class AliExpressClaimer(BaseClaimer):
                     email_el = await self._find_first_login_input()
 
                     if email_el:
-                        self.logger.debug("Email input found. Entering email...")
-                        await email_el.click()
-                        await self.sleep(0.5)
-                        await email_el.send_keys(cfg.ae_email)
+                        current_email = await self._visible_login_value("email")
+                        if should_fill_login_field(current_email, cfg.ae_email):
+                            self.logger.debug("Email input is empty. Entering the configured email...")
+                            await email_el.click()
+                            await self.sleep(0.5)
+                            await email_el.send_keys(cfg.ae_email)
+                        else:
+                            self.logger.debug("AliExpress already filled the email; keeping the browser value.")
                         await self.sleep(0.8)
 
                         # Submit email via Enter + a trusted click on the real button (plain text click didn't advance the form).
@@ -1344,10 +1371,14 @@ class AliExpressClaimer(BaseClaimer):
                     self.logger.debug("ℹ️ AliExpress remembered account! (Password input available directly without entering email)")
 
                 if pass_el:
-                    self.logger.debug("Entering password...")
-                    await pass_el.click()
-                    await self.sleep(0.5)
-                    await pass_el.send_keys(cfg.ae_password)
+                    current_password = await self._visible_login_value("password")
+                    if should_fill_login_field(current_password, cfg.ae_password):
+                        self.logger.debug("Password input is empty. Entering the configured password...")
+                        await pass_el.click()
+                        await self.sleep(0.5)
+                        await pass_el.send_keys(cfg.ae_password)
+                    else:
+                        self.logger.debug("AliExpress password field is already filled; keeping the browser value.")
                     await self.sleep(0.8)
 
                     # Submit password via Enter + a trusted click on the real button (same fix as the email step).
@@ -1369,7 +1400,13 @@ class AliExpressClaimer(BaseClaimer):
                             if sign_btn:
                                 await sign_btn.click()
                                 break
-                    await self.sleep(6)
+                    # The redirect and the post-login coin API can take several
+                    # seconds. Do not classify a password-only screen as a
+                    # failure before a real session signal appears.
+                    for _ in range(20):
+                        if await self._login_ok():
+                            break
+                        await self.sleep(1)
             except Exception as e:
                 self.logger.debug("Automated login steps encountered an exception: %s", e)
 

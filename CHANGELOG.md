@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.7.0] - 2026-10-23
+
+### Added
+- A persistent Help area with the six-step introduction preview, version display and explanations for browser sessions, optional credentials, notifications and store dependencies.
+- Store cards now show descriptions and safe authentication metadata. Settings navigation only shows selected stores and enabled GamerPower sources.
+- Tooltips for Apprise URL, Discord webhook, credential fields and important automation options in English, Brazilian Portuguese and Spanish.
+
+### Changed
+- Browser login is the recommended path. Credentials remain optional autofill helpers, while existing secret values are preserved when a field is left blank.
+- Shopee is identified as browser-session only, Fab as an Epic-session dependent module and GamerPower sources as optional.
+
+### Fixed
+- AliExpress login no longer overwrites a remembered email or password field and waits for a real authenticated-session signal after submitting the password. CAPTCHA, social login and verification-code flows remain available for manual completion in Browser.
+
 ## [1.6.5] - 2026-10-23
 
 ### Added

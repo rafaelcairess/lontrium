@@ -11,7 +11,7 @@ let latestStatus = null;
 let latestHistory = [];
 let latestConfig = null;
 let latestUpdate = null;
-let activeSettingsSection = 'section.stores';
+let activeSettingsSection = 'section.help';
 let setupStep = 0;
 let setupValues = {};
 let setupLoginMode = 'browser';
@@ -41,11 +41,21 @@ function t(key, params = {}) {
   return text;
 }
 
+function renderVersion(config = latestConfig) {
+  const version = config?.version || '1.7.0';
+  const label = `v${version.replace(/^v/, '')}`;
+  const header = document.querySelector('#appVersion');
+  const settings = document.querySelector('#settingsVersion');
+  if (header) header.textContent = label;
+  if (settings) settings.textContent = label;
+}
+
 async function setLocale(locale, persist = true) {
   currentLocale = normalizeLocale(locale);
   const response = await fetch(`/assets/locales/${currentLocale}.json`, { cache: 'no-store' });
   if (!response.ok) throw new Error('Unable to load language');
   translations = await response.json();
+  renderVersion();
   document.documentElement.lang = currentLocale;
   document.title = t('app.title');
   document.querySelector('#languageSelect').value = currentLocale;
@@ -389,22 +399,26 @@ async function runStores(stores = null) {
 function renderStoreChoices(container, name, selected) {
   const rows = latestStatus.stores.map(store => {
     const label = document.createElement('label');
-    label.className = 'store-picker-row';
+    label.className = 'store-card';
+    label.classList.toggle('selected', selected.includes(store.key));
     const copy = document.createElement('span');
-    copy.className = 'store-picker-name';
+    copy.className = 'store-card-copy';
     const storeName = document.createElement('span');
+    storeName.className = 'store-card-name';
     storeName.textContent = store.name;
     copy.append(storeName);
-    if (store.authNoteKey) {
-      const note = document.createElement('small');
-      note.textContent = t(store.authNoteKey);
-      copy.append(note);
-    }
+    const description = document.createElement('small');
+    description.textContent = t(store.descriptionKey || 'storeDescription.default');
+    const auth = document.createElement('small');
+    auth.className = 'store-card-auth';
+    auth.textContent = t(store.authNoteKey || 'storeAuth.optional');
+    copy.append(description, auth);
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.name = name;
     input.value = store.key;
     input.checked = selected.includes(store.key);
+    input.addEventListener('change', () => label.classList.toggle('selected', input.checked));
     label.append(createStoreIcon(store), copy, input);
     return label;
   });
@@ -520,6 +534,7 @@ function createInput(spec, current, configured, prefix = '') {
     input.checked = Boolean(current);
     const label = document.createElement('label');
     label.textContent = t(spec.labelKey);
+    if (spec.tooltipKey) label.append(createTooltip(spec.tooltipKey, `help-${prefix}${spec.key}`));
     wrapper.append(input, label);
     return wrapper;
   }
@@ -532,6 +547,7 @@ function createInput(spec, current, configured, prefix = '') {
     labelText.textContent = t(spec.labelKey);
     label.append(labelText);
     if (spec.credentialPurposeKey) label.append(createTooltip(spec.credentialPurposeKey, `help-${prefix}${spec.key}`));
+    else if (spec.tooltipKey) label.append(createTooltip(spec.tooltipKey, `help-${prefix}${spec.key}`));
     
     const editor = renderTimeEditor(input);
     wrapper.classList.add('schedule-times-field');
@@ -555,6 +571,7 @@ function createInput(spec, current, configured, prefix = '') {
   labelText.textContent = t(spec.labelKey);
   label.append(labelText);
   if (spec.credentialPurposeKey) label.append(createTooltip(spec.credentialPurposeKey, `help-${prefix}${spec.key}`));
+  else if (spec.tooltipKey) label.append(createTooltip(spec.tooltipKey, `help-${prefix}${spec.key}`));
   if (spec.secret && configured) {
     const marker = document.createElement('span');
     marker.className = 'configured';
@@ -585,23 +602,49 @@ function createSettingsPanel(sectionKey, body) {
   return panel;
 }
 
-function introductionSettingsBody() {
+function helpSettingsBody() {
   const body = document.createElement('div');
-  body.className = 'settings-introduction';
+  body.className = 'help-panel';
+  const intro = document.createElement('div');
+  intro.className = 'help-panel-intro';
   const title = document.createElement('h4');
-  title.textContent = t('settings.introductionTitle');
+  title.textContent = t('settings.helpTitle');
   const copy = document.createElement('p');
-  copy.textContent = t('settings.introductionCopy');
-  const privacy = document.createElement('p');
-  privacy.className = 'settings-introduction-note';
-  privacy.textContent = t('settings.noPasswordCopy');
+  copy.textContent = t('settings.helpCopy');
+  const version = document.createElement('small');
+  version.className = 'help-version';
+  version.textContent = t('settings.versionLabel', {version: latestConfig?.version || '1.7.0'});
+  intro.append(title, copy, version);
+  const cards = document.createElement('div');
+  cards.className = 'help-grid';
+  for (const [titleKey, copyKey] of [
+    ['help.browserTitle', 'help.browserCopy'],
+    ['help.sessionTitle', 'help.sessionCopy'],
+    ['help.credentialsTitle', 'help.credentialsCopy'],
+    ['help.storesTitle', 'help.storesCopy'],
+    ['help.notificationsTitle', 'help.notificationsCopy'],
+    ['help.aliexpressTitle', 'help.aliexpressCopy'],
+  ]) {
+    const card = document.createElement('article');
+    card.className = 'help-card';
+    const cardTitle = document.createElement('h4');
+    cardTitle.textContent = t(titleKey);
+    const cardCopy = document.createElement('p');
+    cardCopy.textContent = t(copyKey);
+    card.append(cardTitle, cardCopy);
+    cards.append(card);
+  }
   const button = document.createElement('button');
   button.className = 'button secondary';
   button.type = 'button';
   button.textContent = t('settings.openIntroduction');
   button.addEventListener('click', openOnboardingPreview);
-  body.append(title, copy, privacy, button);
+  body.append(intro, cards, button);
   return body;
+}
+
+function introductionSettingsBody() {
+  return helpSettingsBody();
 }
 
 function activateSettingsSection(name) {
@@ -617,22 +660,56 @@ function activateSettingsSection(name) {
 function renderSettings(config) {
   latestConfig = config;
   const options = document.createElement('div');
-  options.className = 'store-settings-list';
+  options.className = 'store-catalog';
   renderStoreChoices(options, 'STORES', config.values.STORES);
   const panels = [
-    createSettingsPanel('section.introduction', introductionSettingsBody()),
+    createSettingsPanel('section.help', helpSettingsBody()),
     createSettingsPanel('section.stores', options),
   ];
+  const selectedStores = new Set(config.values.STORES || []);
+  const visibleSections = new Set(['section.schedule', 'section.browser', 'section.notifications']);
+  for (const store of selectedStores) visibleSections.add(`section.${store}`);
+  if (selectedStores.has('gamerpower')) {
+    if (config.values.FANATICAL_ENABLE) visibleSections.add('section.fanatical');
+    if (config.values.ITCHIO_ENABLE) visibleSections.add('section.itchio');
+    if (config.values.INDIEGALA_ENABLE) visibleSections.add('section.indiegala');
+  }
   const sections = new Map();
   for (const spec of config.schema.filter(item => item.key !== 'STORES')) {
+    if (!visibleSections.has(spec.sectionKey)) continue;
     if (!sections.has(spec.sectionKey)) sections.set(spec.sectionKey, []);
     sections.get(spec.sectionKey).push(spec);
   }
   for (const [sectionKey, specs] of sections) {
     const grid = document.createElement('div');
     grid.className = 'field-grid';
-    for (const spec of specs) grid.append(createInput(spec, config.values[spec.key], config.configured[spec.key]));
-    panels.push(createSettingsPanel(sectionKey, grid));
+    const standard = specs.filter(spec => !spec.credentialPurposeKey);
+    const credentials = specs.filter(spec => spec.credentialPurposeKey);
+    for (const spec of standard) grid.append(createInput(spec, config.values[spec.key], config.configured[spec.key]));
+    const sectionBody = document.createElement('div');
+    if (standard.length) sectionBody.append(grid);
+    if (credentials.length) {
+      const advanced = document.createElement('details');
+      advanced.className = 'advanced-credentials';
+      const summary = document.createElement('summary');
+      summary.textContent = t('settings.automaticSignInTitle');
+      const note = document.createElement('p');
+      note.textContent = t('settings.automaticSignInCopy');
+      const credentialGrid = document.createElement('div');
+      credentialGrid.className = 'field-grid';
+      for (const spec of credentials) credentialGrid.append(createInput(spec, config.values[spec.key], config.configured[spec.key]));
+      advanced.append(summary, note, credentialGrid);
+      sectionBody.append(advanced);
+    }
+    const storeKey = sectionKey.replace('section.', '');
+    const store = latestStatus?.stores.find(item => item.key === storeKey);
+    if (store?.authNoteKey) {
+      const authNote = document.createElement('p');
+      authNote.className = 'settings-auth-note';
+      authNote.textContent = t(store.authNoteKey);
+      sectionBody.prepend(authNote);
+    }
+    panels.push(createSettingsPanel(sectionKey, sectionBody));
   }
   document.querySelector('#settingsContent').replaceChildren(...panels);
   const navItems = panels.map(panel => {
@@ -658,7 +735,7 @@ function renderSettings(config) {
     return button;
   });
   document.querySelector('#settingsNav').replaceChildren(...navItems);
-  if (!panels.some(panel => panel.dataset.section === activeSettingsSection)) activeSettingsSection = 'section.stores';
+  if (!panels.some(panel => panel.dataset.section === activeSettingsSection)) activeSettingsSection = 'section.help';
   activateSettingsSection(activeSettingsSection);
 }
 
@@ -843,11 +920,10 @@ function setupStoresPage() {
 function credentialSectionKeys() {
   const stores = new Set(setupSelectedStores());
   const sections = new Set([...stores].map(store => `section.${store}`));
-  if (stores.has('fab')) sections.add('section.epic');
   if (stores.has('gamerpower')) {
-    sections.add('section.fanatical');
-    sections.add('section.itchio');
-    sections.add('section.indiegala');
+    if (setupValues.FANATICAL_ENABLE) sections.add('section.fanatical');
+    if (setupValues.ITCHIO_ENABLE) sections.add('section.itchio');
+    if (setupValues.INDIEGALA_ENABLE) sections.add('section.indiegala');
   }
   return sections;
 }
@@ -1037,6 +1113,7 @@ async function initialise() {
   latestStatus = status;
   latestHistory = history.history || [];
   latestConfig = config;
+  renderVersion(latestConfig);
   setupValues = {...latestConfig.values, STORES: [...latestConfig.values.STORES]};
   setupScheduleMode = inferSetupScheduleMode();
   renderStatus(latestStatus);

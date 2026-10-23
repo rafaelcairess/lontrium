@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from dotenv import set_key
 
 from src.core.config import cfg
+from src.version import __version__
 
 
 STORE_KEYS = ("steam", "epic", "fab", "prime", "gog", "ubisoft", "unity", "gamerpower", "aliexpress", "shopee")
@@ -29,6 +30,7 @@ class SettingSpec:
     help_key: str = ""
     credential_purpose_key: str = ""
     restart: bool = False
+    tooltip_key: str = ""
 
     def public(self) -> dict:
         return {
@@ -42,6 +44,7 @@ class SettingSpec:
             "helpKey": self.help_key,
             "credentialPurposeKey": self.credential_purpose_key,
             "restart": self.restart,
+            "tooltipKey": self.tooltip_key,
         }
 
 
@@ -56,6 +59,7 @@ def _setting(
     maximum: int | None = None,
     help_key: str = "",
     credential: bool = False,
+    tooltip_key: str = "",
 ) -> SettingSpec:
     """Create a schema entry whose user-facing copy lives in locale files."""
     return SettingSpec(
@@ -69,26 +73,28 @@ def _setting(
         maximum,
         help_key,
         f"credentials.{section}.purpose" if credential else "",
+        False,
+        tooltip_key,
     )
 
 
 SPECS = (
     _setting("STORES", "stores", "stores", "stores"),
-    _setting("SCHEDULER_HOURS", "scheduler_hours", "schedule", "integer", minimum=0, maximum=720),
+    _setting("SCHEDULER_HOURS", "scheduler_hours", "schedule", "integer", minimum=0, maximum=720, tooltip_key="help.scheduleHours"),
     _setting("SCHEDULER_FIXED_TIMES", "scheduler_fixed_times", "schedule", help_key="help.fixedTimes"),
     _setting("SCHEDULER_TIMEZONE", "scheduler_timezone", "schedule", help_key="help.timezone"),
-    _setting("RUN_ON_STARTUP", "run_on_startup", "schedule", "boolean"),
-    _setting("WINDOWS_ECONOMY_SCHEDULE", "windows_economy_schedule", "schedule", "boolean"),
-    _setting("WINDOWS_WAKE_ON_AC", "windows_wake_on_ac", "schedule", "boolean"),
-    _setting("SHOW", "show", "browser", "boolean"),
-    _setting("VNC_LOGIN_TIMEOUT", "vnc_login_timeout", "browser", "integer", minimum=30, maximum=3600),
-    _setting("NOTIFY_SUMMARY", "notify_summary", "notifications", "boolean"),
-    _setting("NOTIFY_ERRORS", "notify_errors", "notifications", "boolean"),
-    _setting("NOTIFY_CLAIM_FAILS", "notify_claim_fails", "notifications", "boolean"),
-    _setting("NOTIFY_LOGIN_REQUEST", "notify_login_request", "notifications", "boolean"),
-    _setting("WINDOWS_NOTIFICATIONS", "windows_notifications", "notifications", "boolean"),
-    _setting("DISCORD_WEBHOOK", "discord_webhook", "notifications", "password", secret=True),
-    _setting("NOTIFY", "notify_url", "notifications", "password", secret=True),
+    _setting("RUN_ON_STARTUP", "run_on_startup", "schedule", "boolean", tooltip_key="help.runOnStartup"),
+    _setting("WINDOWS_ECONOMY_SCHEDULE", "windows_economy_schedule", "schedule", "boolean", tooltip_key="help.economySchedule"),
+    _setting("WINDOWS_WAKE_ON_AC", "windows_wake_on_ac", "schedule", "boolean", tooltip_key="help.wakeOnPower"),
+    _setting("SHOW", "show", "browser", "boolean", tooltip_key="help.browserVisibility"),
+    _setting("VNC_LOGIN_TIMEOUT", "vnc_login_timeout", "browser", "integer", minimum=30, maximum=3600, tooltip_key="help.loginTimeout"),
+    _setting("NOTIFY_SUMMARY", "notify_summary", "notifications", "boolean", tooltip_key="help.summaryNotifications"),
+    _setting("NOTIFY_ERRORS", "notify_errors", "notifications", "boolean", tooltip_key="help.errorNotifications"),
+    _setting("NOTIFY_CLAIM_FAILS", "notify_claim_fails", "notifications", "boolean", tooltip_key="help.claimNotifications"),
+    _setting("NOTIFY_LOGIN_REQUEST", "notify_login_request", "notifications", "boolean", tooltip_key="help.loginNotifications"),
+    _setting("WINDOWS_NOTIFICATIONS", "windows_notifications", "notifications", "boolean", tooltip_key="help.windowsNotifications"),
+    _setting("DISCORD_WEBHOOK", "discord_webhook", "notifications", "password", secret=True, tooltip_key="help.discordWebhook"),
+    _setting("NOTIFY", "notify_url", "notifications", "password", secret=True, tooltip_key="help.appriseUrl"),
     _setting("EG_EMAIL", "eg_email", "epic", "password", secret=True, credential=True),
     _setting("EG_PASSWORD", "eg_password", "epic", "password", secret=True, credential=True),
     _setting("EG_OTPKEY", "eg_otpkey", "epic", "password", secret=True, credential=True),
@@ -226,6 +232,7 @@ def get_settings(default_stores: list[str]) -> dict:
         "values": values,
         "configured": configured,
         "setup": get_setup_state(),
+        "version": __version__,
     }
 
 

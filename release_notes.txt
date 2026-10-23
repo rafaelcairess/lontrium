@@ -1,3 +1,10 @@
+### Lontrium Control v1.7.0
+
+- Settings now shows the installed version and only the selected store modules.
+- Added Help with the reusable six-step introduction, browser-session guidance, optional credential explanations and localized tooltips.
+- Reworked store selection cards and authentication metadata for Shopee, Fab, GamerPower and optional autofill stores.
+- AliExpress now preserves remembered login fields and waits for a confirmed session before falling back to manual Browser login.
+
 ### Added
 - CAPTCHA and expired-login notifications now include **Open browser** and **Skip now** actions. A skipped store remains pending for the next scheduled time while the remaining stores continue.
 - Notifications use the Lontrium icon and replace older alerts for the same store instead of accumulating duplicates.

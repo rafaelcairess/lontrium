@@ -10,20 +10,42 @@ from uuid import uuid4
 
 
 STORE_META = {
-    "steam": {"name": "Steam", "badge": "S", "color": "#1b9fff"},
-    "epic": {"name": "Epic Games", "badge": "E", "color": "#ffffff"},
-    "fab": {"name": "Fab", "badge": "F", "color": "#6e56cf"},
-    "prime": {"name": "Prime Gaming", "badge": "P", "color": "#9146ff"},
-    "gog": {"name": "GOG", "badge": "G", "color": "#b65cff"},
-    "ubisoft": {"name": "Ubisoft", "badge": "U", "color": "#29a3ff"},
-    "unity": {"name": "Unity", "badge": "U", "color": "#ffffff"},
+    # Authentication metadata is descriptive only; secrets never leave the settings API.
+    "steam": {"name": "Steam", "badge": "S", "color": "#1b9fff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.steam"},
+    "epic": {"name": "Epic Games", "badge": "E", "color": "#ffffff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.epic"},
+    "fab": {"name": "Fab", "badge": "F", "color": "#6e56cf", "authMode": "inherited", "authNoteKey": "storeAuth.fab", "descriptionKey": "storeDescription.fab"},
+    "prime": {"name": "Prime Gaming", "badge": "P", "color": "#9146ff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.prime"},
+    "gog": {"name": "GOG", "badge": "G", "color": "#b65cff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.gog"},
+    "ubisoft": {"name": "Ubisoft", "badge": "U", "color": "#29a3ff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.ubisoft"},
+    "unity": {"name": "Unity", "badge": "U", "color": "#ffffff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.unity"},
     "gamerpower": {"name": "GamerPower", "badge": "⚡", "color": "#ffb020"},
-    "aliexpress": {"name": "AliExpress", "badge": "AE", "color": "#ff4747"},
+    "aliexpress": {"name": "AliExpress", "badge": "AE", "color": "#ff4747", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.aliexpress"},
     "shopee": {
         "name": "Shopee", "badge": "S", "color": "#ee4d2d",
         "authNoteKey": "storeAuth.shopee",
     },
 }
+
+
+# Public, non-secret metadata used by the dashboard to explain authentication.
+_STORE_AUTH_METADATA = {
+    "steam": ("optional", "storeAuth.optional", "storeDescription.steam"),
+    "epic": ("optional", "storeAuth.optional", "storeDescription.epic"),
+    "fab": ("inherited", "storeAuth.fab", "storeDescription.fab"),
+    "prime": ("optional", "storeAuth.optional", "storeDescription.prime"),
+    "gog": ("optional", "storeAuth.optional", "storeDescription.gog"),
+    "ubisoft": ("optional", "storeAuth.optional", "storeDescription.ubisoft"),
+    "unity": ("optional", "storeAuth.optional", "storeDescription.unity"),
+    "gamerpower": ("session", "storeAuth.gamerpower", "storeDescription.gamerpower"),
+    "aliexpress": ("optional", "storeAuth.optional", "storeDescription.aliexpress"),
+    "shopee": ("session", "storeAuth.shopee", "storeDescription.shopee"),
+}
+for _store_key, (_auth_mode, _auth_note, _description) in _STORE_AUTH_METADATA.items():
+    STORE_META.setdefault(_store_key, {}).update({
+        "authMode": _auth_mode,
+        "authNoteKey": _auth_note,
+        "descriptionKey": _description,
+    })
 
 
 def _now() -> str:

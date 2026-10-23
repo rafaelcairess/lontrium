@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **Lontrium Control v1.6.5 es la versión actual.** Descarga el instalador de arriba y verifícalo con [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **Lontrium Control v1.7.0 es la versión actual.** Descarga el instalador de arriba y verifícalo con [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="images/05-dashboard.png" alt="Panel de Lontrium Control con resultados de juegos, AliExpress y Shopee" width="1100">
@@ -81,7 +81,11 @@ El asistente presenta seis decisiones prácticas sin exigir conocimientos de var
 
 Después de **Finalizar y ejecutar**, el panel abre las tiendas elegidas. Cuando una necesite autenticación, abre **Navegador** e inicia sesión en el sitio oficial. El perfil persistente reutiliza la sesión hasta que la propia tienda la caduque.
 
-Puedes volver a ver toda la introducción desde **Configuración → Introducción**. Se abre en modo de vista previa y no sobrescribe ajustes ni inicia una ejecución.
+Puedes volver a ver toda la introducción desde **Configuración → Ayuda**. La Ayuda explica sesiones, credenciales opcionales y dependencias de las tiendas; la introducción se abre en modo de vista previa y no sobrescribe ajustes ni inicia una ejecución.
+
+### Inicio de sesión y credenciales
+
+El inicio en el Navegador es el camino recomendado. Lontrium guarda la sesión en el perfil local y la reutiliza hasta que la tienda la caduque. Usuario, email, contraseña y TOTP son ayudas opcionales de autocompletado. Shopee usa solo sesión manual; Fab reutiliza la sesión de Epic; GamerPower puede usar fuentes opcionales. En AliExpress, si el email ya está recordado y solo aparece la contraseña, Lontrium conserva el email, prueba la contraseña y espera una confirmación real de sesión.
 
 ## Cómo funciona
 

@@ -238,6 +238,7 @@ def test_secret_values_are_never_returned(monkeypatch):
     assert "AE_PASSWORD" not in payload["values"]
     assert payload["configured"]["AE_EMAIL"] is True
     assert payload["configured"]["AE_PASSWORD"] is True
+    assert payload["version"] == "1.7.0"
     assert "private@example.invalid" not in json.dumps(payload)
     assert "do-not-return" not in json.dumps(payload)
 
@@ -246,6 +247,13 @@ def test_windows_manual_action_notification_is_a_non_secret_setting():
     spec = next(item for item in settings.SPECS if item.key == "WINDOWS_NOTIFICATIONS")
     assert spec.kind == "boolean"
     assert spec.secret is False
+
+
+def test_notification_and_automation_tooltips_are_public_and_localized():
+    schema = {item["key"]: item for item in settings.get_settings(["epic"])["schema"]}
+    assert schema["NOTIFY"]["tooltipKey"] == "help.appriseUrl"
+    assert schema["DISCORD_WEBHOOK"]["tooltipKey"] == "help.discordWebhook"
+    assert schema["SCHEDULER_HOURS"]["tooltipKey"] == "help.scheduleHours"
 
 
 def test_native_notifier_uses_only_fixed_loopback_endpoints():
@@ -344,7 +352,10 @@ def test_dashboard_state_only_exposes_safe_result_details():
     assert ali["state"] == "success"
     assert ali["enabled"] is True
     assert ali["details"] == {"kind": "coins", "claimedCoins": 15, "balance": 120}
-    assert set(ali) == {"name", "badge", "color", "key", "state", "message", "messageKey", "lastRun", "details", "enabled"}
+    assert set(ali) == {
+        "name", "badge", "color", "key", "state", "message", "messageKey",
+        "lastRun", "details", "enabled", "authMode", "authNoteKey", "descriptionKey",
+    }
     assert ali["messageKey"] == "status.resultCoins"
 
 
@@ -739,7 +750,7 @@ def test_frontend_is_local_and_contains_store_controls():
     assert "setup-login-mode" in script
     assert "setup-schedule-mode" in script
     assert "settings-nav-symbol" in script
-    assert "section.introduction" in script
+    assert "section.help" in script
     assert "openOnboardingPreview" in script
     assert 'id="setupExit"' in html
     assert "help-tooltip" in script
