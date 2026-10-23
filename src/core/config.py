@@ -181,6 +181,14 @@ class Config:
     windows_host_scheduler: bool = _bool("WINDOWS_HOST_SCHEDULER", default=False)
     windows_economy_schedule: bool = _bool("WINDOWS_ECONOMY_SCHEDULE", default=True)
     windows_wake_on_ac: bool = _bool("WINDOWS_WAKE_ON_AC", default=True)
+    # Automatic runs are gated by a host-side Windows check in packaged installs.
+    # These values are also used by the in-process scheduler as a fallback.
+    resource_guard_enabled: bool = _bool("RESOURCE_GUARD_ENABLED", default=True)
+    resource_min_free_memory_mb: int = _int("RESOURCE_MIN_FREE_MEMORY_MB", 3072)
+    resource_critical_free_memory_mb: int = _int("RESOURCE_CRITICAL_FREE_MEMORY_MB", 1024)
+    resource_cpu_threshold: int = _int("RESOURCE_CPU_THRESHOLD", 85)
+    resource_gpu_threshold: int = _int("RESOURCE_GPU_THRESHOLD", 80)
+    resource_last_slot_override: bool = _bool("RESOURCE_LAST_SLOT_OVERRIDE", default=True)
     store_run_timeout: int = _int("STORE_RUN_TIMEOUT", 900)
     claim_run_timeout: int = _int("CLAIM_RUN_TIMEOUT", 2700)
     gui_idle_timeout: int = _int("GUI_IDLE_TIMEOUT", 1800)

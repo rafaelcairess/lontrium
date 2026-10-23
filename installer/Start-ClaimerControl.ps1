@@ -36,6 +36,7 @@ $Messages = @{
         EconomyWaiting = "Economy mode: waiting for the automatic run to finish"
         EconomyComplete = "Automatic run finished. Releasing Docker and WSL memory..."
         EconomyNoRun = "No automatic run is due. Releasing Docker and WSL memory..."
+        ResourceDeferred = "Automatic run deferred because the computer is under heavy load. Next attempt: {0}."
         EconomySetup = "Initial setup is not complete. The dashboard will remain open."
         EconomyTimeout = "The automatic run did not finish in time. Releasing resources started by Lontrium..."
         EconomySharedDocker = "Another container is running. Lontrium was stopped, but Docker will remain available for the other application."
@@ -72,6 +73,7 @@ $Messages = @{
         EconomyWaiting = "Modo econômico: aguardando a coleta automática terminar"
         EconomyComplete = "Coleta automática concluída. Liberando a memória do Docker e do WSL..."
         EconomyNoRun = "Nenhuma coleta automática está pendente. Liberando a memória do Docker e do WSL..."
+        ResourceDeferred = "A coleta automática foi adiada porque o computador está sob carga alta. Próxima tentativa: {0}."
         EconomySetup = "A configuração inicial ainda não terminou. O painel permanecerá aberto."
         EconomyTimeout = "A coleta automática não terminou a tempo. Liberando os recursos iniciados pelo Lontrium..."
         EconomySharedDocker = "Outro container está em execução. O Lontrium foi parado, mas o Docker continuará disponível para o outro aplicativo."
@@ -108,6 +110,7 @@ $Messages = @{
         EconomyWaiting = "Modo económico: esperando a que termine la ejecución automática"
         EconomyComplete = "La ejecución automática terminó. Liberando la memoria de Docker y WSL..."
         EconomyNoRun = "No hay ninguna ejecución automática pendiente. Liberando la memoria de Docker y WSL..."
+        ResourceDeferred = "La ejecución automática se pospuso porque el equipo está bajo mucha carga. Próximo intento: {0}."
         EconomySetup = "La configuración inicial no ha terminado. El panel permanecerá abierto."
         EconomyTimeout = "La ejecución automática no terminó a tiempo. Liberando los recursos iniciados por Lontrium..."
         EconomySharedDocker = "Hay otro contenedor en ejecución. Lontrium se detuvo, pero Docker seguirá disponible para la otra aplicación."
@@ -160,6 +163,7 @@ $PendingModePath = Join-Path $PSScriptRoot "installer-mode.pending"
 $StateDirectory = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "Lontrium Control"
 $SmartWakePath = Join-Path $StateDirectory "smart_wake.txt"
 $LegacySmartWakePath = Join-Path $PSScriptRoot "state\smart_wake.txt"
+$ScheduleTimesPath = Join-Path $StateDirectory "schedule_times.txt"
 
 function Write-Step([string]$Message) {
     Write-Host "`n> $Message" -ForegroundColor Cyan
@@ -395,6 +399,162 @@ function Get-EnvironmentValue([string]$Name) {
     return ""
 }
 
+function Get-ResourceInteger([string]$Name, [int]$Default) {
+    $raw = Get-EnvironmentValue $Name
+    $value = 0
+    if ([int]::TryParse($raw, [ref]$value)) { return $value }
+    return $Default
+}
+
+function Get-ConfiguredScheduleTimes {
+    $raw = ""
+    if (Test-Path -LiteralPath $ScheduleTimesPath) {
+        $raw = (Get-Content -LiteralPath $ScheduleTimesPath -Raw -ErrorAction SilentlyContinue).Trim()
+    }
+    if (-not $raw) { $raw = Get-EnvironmentValue "SCHEDULER_FIXED_TIMES" }
+    return @($raw -split "," | ForEach-Object {
+        $item = $_.Trim()
+        $parsed = [datetime]::MinValue
+        if ($item -and [datetime]::TryParseExact($item, "HH:mm", [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed)) {
+            $parsed.ToString("HH:mm")
+        }
+    } | Sort-Object -Unique)
+}
+
+function Get-HostResourceSnapshot {
+    $os = Get-CimInstance Win32_OperatingSystem
+    $totalMemoryMb = [int][math]::Round([double]$os.TotalVisibleMemorySize / 1024)
+    $availableMemoryMb = [int][math]::Round([double]$os.FreePhysicalMemory / 1024)
+    $cpuPercent = 0.0
+    try {
+        $cpu = Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'"
+        if ($cpu) { $cpuPercent = [double]$cpu.PercentProcessorTime }
+    } catch { }
+
+    $gpuPercent = $null
+    try {
+        # GPU Engine exposes per-engine utilization. The maximum active engine is
+        # a conservative indicator and avoids double-counting 3D/video engines.
+        $samples = @(Get-Counter '\GPU Engine(*)\Utilization Percentage' -SampleInterval 1 -MaxSamples 1 -ErrorAction Stop).CounterSamples
+        if ($samples.Count -gt 0) {
+            $gpuPercent = [math]::Round((($samples | Measure-Object -Property CookedValue -Maximum).Maximum), 1)
+        }
+    } catch { }
+
+    $foregroundName = $null
+    $foregroundMemoryMb = 0
+    $foregroundFullscreen = $false
+    try {
+        if (-not ([System.Management.Automation.PSTypeName]'Lontrium.NativeWindow').Type) {
+            Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+namespace Lontrium {
+    public struct NativeRect { public int Left; public int Top; public int Right; public int Bottom; }
+    public static class NativeWindow {
+        [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+        [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out NativeRect rect);
+        [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
+    }
+}
+"@
+        }
+        $handle = [Lontrium.NativeWindow]::GetForegroundWindow()
+        [uint32]$windowPid = 0
+        [Lontrium.NativeWindow]::GetWindowThreadProcessId($handle, [ref]$windowPid) | Out-Null
+        $foreground = Get-Process -Id $windowPid -ErrorAction SilentlyContinue
+        if ($foreground) {
+            $foregroundName = [string]$foreground.ProcessName
+            $foregroundMemoryMb = [int][math]::Round([double]$foreground.WorkingSet64 / 1MB)
+        }
+        $rect = New-Object Lontrium.NativeRect
+        if ([Lontrium.NativeWindow]::GetWindowRect($handle, [ref]$rect)) {
+            $foregroundFullscreen = $rect.Left -le 0 -and $rect.Top -le 0 -and
+                $rect.Right -ge [Lontrium.NativeWindow]::GetSystemMetrics(0) -and
+                $rect.Bottom -ge [Lontrium.NativeWindow]::GetSystemMetrics(1)
+        }
+    } catch { }
+
+    [pscustomobject]@{
+        TotalMemoryMb = $totalMemoryMb
+        AvailableMemoryMb = $availableMemoryMb
+        CpuPercent = $cpuPercent
+        GpuPercent = $gpuPercent
+        ForegroundName = $foregroundName
+        ForegroundMemoryMb = $foregroundMemoryMb
+        ForegroundFullscreen = $foregroundFullscreen
+    }
+}
+
+function Get-HostResourceGate {
+    $enabled = Get-EnvironmentValue "RESOURCE_GUARD_ENABLED"
+    if ($enabled -match '^(0|false|no)$') { return [pscustomobject]@{ Defer = $false } }
+
+    $times = @(Get-ConfiguredScheduleTimes)
+    if ($times.Count -eq 0) { return [pscustomobject]@{ Defer = $false } }
+    $now = Get-Date
+    $future = @()
+    foreach ($item in $times) {
+        $candidate = Get-Date -Year $now.Year -Month $now.Month -Day $now.Day -Hour ([int]$item.Substring(0, 2)) -Minute ([int]$item.Substring(3, 2)) -Second 0
+        if ($candidate -gt $now) { $future += $candidate }
+    }
+    $lastSlot = $future.Count -eq 0
+    $next = if ($future.Count -gt 0) {
+        $future | Sort-Object | Select-Object -First 1
+    } else {
+        $tomorrow = $now.AddDays(1)
+        Get-Date -Year $tomorrow.Year -Month $tomorrow.Month -Day $tomorrow.Day -Hour ([int]$times[0].Substring(0, 2)) -Minute ([int]$times[0].Substring(3, 2)) -Second 0
+    }
+    $nextText = $next.ToString("dd/MM 'às' HH:mm")
+
+    $snapshot = Get-HostResourceSnapshot
+    $minFree = [math]::Max(512, (Get-ResourceInteger "RESOURCE_MIN_FREE_MEMORY_MB" 3072))
+    $criticalFree = [math]::Max(256, [math]::Min((Get-ResourceInteger "RESOURCE_CRITICAL_FREE_MEMORY_MB" 1024), $minFree))
+    $cpuLimit = [math]::Min(99, [math]::Max(50, (Get-ResourceInteger "RESOURCE_CPU_THRESHOLD" 85)))
+    $gpuLimit = [math]::Min(99, [math]::Max(50, (Get-ResourceInteger "RESOURCE_GPU_THRESHOLD" 80)))
+    $reasons = @()
+    $reasonCode = "load"
+    if ($snapshot.AvailableMemoryMb -lt $minFree) { $reasons += "memória disponível baixa"; $reasonCode = "memory" }
+    if ($snapshot.CpuPercent -ge $cpuLimit) { $reasons += "CPU ocupada"; $reasonCode = "cpu" }
+    if ($null -ne $snapshot.GpuPercent -and $snapshot.GpuPercent -ge $gpuLimit) { $reasons += "GPU ocupada"; $reasonCode = "gpu" }
+    if ($snapshot.ForegroundFullscreen -and $snapshot.ForegroundName -and $snapshot.ForegroundMemoryMb -ge 1024) {
+        $reasons += "aplicação em primeiro plano ($($snapshot.ForegroundName))"
+        $reasonCode = "foreground"
+    }
+    $critical = $snapshot.AvailableMemoryMb -le $criticalFree
+    if ($reasons.Count -eq 0) { return [pscustomobject]@{ Defer = $false; LastSlot = $lastSlot; NextText = $nextText } }
+    $lastSlotOverride = Get-EnvironmentValue "RESOURCE_LAST_SLOT_OVERRIDE"
+    $allowLast = $lastSlotOverride -notmatch '^(0|false|no)$'
+    if ($lastSlot -and $allowLast -and -not $critical) {
+        Write-Host "Resource pressure detected at the final daily slot; running anyway." -ForegroundColor Yellow
+        return [pscustomobject]@{ Defer = $false; LastSlot = $true; NextText = $nextText; Reason = ($reasons -join "; ") }
+    }
+    [pscustomobject]@{
+        Defer = $true
+        Critical = $critical
+        LastSlot = $lastSlot
+        NextText = $nextText
+        Reason = ($reasons -join "; ")
+        ReasonCode = $reasonCode
+        ForegroundName = $snapshot.ForegroundName
+        AvailableMemoryMb = $snapshot.AvailableMemoryMb
+    }
+}
+
+function Show-ResourceDeferredNotification($Gate) {
+    $processName = if ($Gate.ForegroundName) { [string]$Gate.ForegroundName } else { "aplicação pesada" }
+    $processArg = '"' + $processName.Replace('"', '') + '"'
+    $nextArg = '"' + ([string]$Gate.NextText).Replace('"', '') + '"'
+    Write-Host ($Script:Text.ResourceDeferred -f $Gate.NextText) -ForegroundColor Yellow
+    if (Test-Path -LiteralPath $NotifierPath) {
+        Start-Process -FilePath $NotifierPath -ArgumentList @(
+            "--resource-deferred", $processArg, $nextArg,
+            [string]$Gate.ReasonCode, ([string]$Gate.LastSlot)
+        ) -WindowStyle Hidden | Out-Null
+    }
+}
+
 function Test-LontriumContainerRunning {
     try {
         $json = & docker inspect claimer-control 2>$null
@@ -470,6 +630,12 @@ function Sync-WindowsSchedule {
     $wakeOnAc = [bool]$values.WINDOWS_WAKE_ON_AC
     $times = @(([string]$values.SCHEDULER_FIXED_TIMES -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     $stores = @($values.STORES | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } | Where-Object { $_ } | Sort-Object -Unique)
+    if (-not (Test-Path -LiteralPath $StateDirectory)) {
+        New-Item -ItemType Directory -Path $StateDirectory -Force | Out-Null
+    }
+    # The host preflight runs before Docker starts, so keep a local copy of the
+    # fixed times that were last synchronized from the dashboard.
+    Set-Content -LiteralPath $ScheduleTimesPath -Value ($times -join ",") -Encoding ASCII
     $configurationSource = @(
         "economy=$economy", "logon=$runAtLogon", "wake=$wakeOnAc",
         "times=$($times -join ',')", "stores=$($stores -join ',')"
@@ -975,6 +1141,13 @@ function Invoke-ClaimerControl(
         if ($RequestedAction -eq "scheduled" -and (Test-SmartWakeCompleteToday)) {
             Write-Host $Script:Text.ScheduleComplete -ForegroundColor Green
             return 0
+        }
+        if ($RequestedAction -eq "scheduled") {
+            $resourceGate = Get-HostResourceGate
+            if ($resourceGate.Defer) {
+                Show-ResourceDeferredNotification $resourceGate
+                return 0
+            }
         }
         if ($RequestedAction -in @("start", "source") -and (Test-PanelReady)) {
             if ($RequestedAction -eq "start") {

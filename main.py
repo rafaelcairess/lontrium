@@ -40,6 +40,7 @@ from src.core.database import (
 from src.core.selection import apply_run_selection
 from src.core.updates import get_update_status, notify_if_update_available
 from src.core.notifier import notify
+from src.core.resource_guard import evaluate as evaluate_resource_guard, next_fixed_slot, sample_resources
 from src.gui.settings import (
     SettingsError,
     complete_setup,
@@ -495,6 +496,7 @@ async def run_claimers_scheduled(
     *,
     automatic: bool = False,
     retry_incomplete: bool = False,
+    scheduled_slot: str | None = None,
 ) -> None:
     """Run claimers from scheduler jobs without overlapping executions."""
     if _claim_run_lock.locked():
@@ -502,13 +504,44 @@ async def run_claimers_scheduled(
         return
 
     async with _claim_run_lock:
+        executed = False
         try:
+            if automatic and cfg.resource_guard_enabled:
+                fixed_times = _parse_fixed_times(cfg.scheduler_fixed_times)
+                last_slot = False
+                next_slot = None
+                if fixed_times:
+                    schedule_timezone = _scheduler_timezone()
+                    next_slot, last_slot = next_fixed_slot(
+                        fixed_times,
+                        now=datetime.now(schedule_timezone),
+                    )
+                # Keep sampling off the event loop; browser orchestration must not
+                # be delayed by the operating-system resource probe.
+                snapshot = await asyncio.to_thread(sample_resources)
+                decision = evaluate_resource_guard(snapshot, last_slot=last_slot)
+                if decision.defer:
+                    next_text = next_slot.strftime("%d/%m às %H:%M") if next_slot else "o próximo ciclo"
+                    process_text = decision.snapshot.foreground_name if decision.snapshot else "uma aplicação pesada"
+                    logger.warning(
+                        "Automatic run deferred: %s; foreground=%s; next=%s",
+                        decision.reason, process_text, next_text,
+                    )
+                    await notify(
+                        "Lontrium adiou a execução automática para evitar travamentos. "
+                        f"Detectamos {process_text} em uso e {decision.reason}. "
+                        f"Próxima tentativa: {next_text}."
+                    )
+                    return
+                if last_slot and decision.reason:
+                    logger.info("Resource pressure detected at the final daily slot; running anyway: %s", decision.reason)
             await run_claimers(requested_stores, retry_incomplete=retry_incomplete)
+            executed = True
         finally:
             # Keep the dashboard usable even if an unexpected orchestration
             # error escapes after an individual store has finished.
             dashboard_state.finish_run()
-            if automatic:
+            if automatic and executed:
                 try:
                     await save_last_automatic_run(datetime.now(timezone.utc))
                 except Exception:
@@ -584,7 +617,7 @@ def _configure_scheduled_jobs(
             id="claim_all",
             name="Claim free games",
             replace_existing=True,
-            kwargs={"automatic": True},
+            kwargs={"automatic": True, "scheduled_slot": None},
         )
 
     fixed_times = _parse_fixed_times(cfg.scheduler_fixed_times)
@@ -596,7 +629,7 @@ def _configure_scheduled_jobs(
             id=f"claim_fixed_{hour:02d}_{minute:02d}",
             name=f"Claim free games at {hour:02d}:{minute:02d}",
             replace_existing=True,
-            kwargs={"automatic": True},
+            kwargs={"automatic": True, "scheduled_slot": f"{hour:02d}:{minute:02d}"},
         )
     return fixed_times
 

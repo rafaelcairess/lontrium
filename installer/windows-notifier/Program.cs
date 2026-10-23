@@ -50,6 +50,20 @@ namespace Lontrium.Notifier
                 Show(new ManualEvent { id = Guid.NewGuid().ToString("N"), kind = "launcher_failure", store = "system" });
                 return 0;
             }
+            if (args.Length == 5 && args[0] == "--resource-deferred")
+            {
+                Show(new ManualEvent
+                {
+                    id = Guid.NewGuid().ToString("N"),
+                    kind = "resource_deferred",
+                    store = "system",
+                    processName = args[1],
+                    nextRun = args[2],
+                    reasonCode = args[3],
+                    lastSlot = args[4],
+                });
+                return 0;
+            }
             if (args.Length == 4 && args[0] == "--notify"
                 && Guid.TryParseExact(args[3], "N", out _))
             {
@@ -184,6 +198,19 @@ namespace Lontrium.Notifier
                 {
                     title = language == "pt" ? "Lontrium — não foi possível iniciar" : language == "es" ? "Lontrium — no se pudo iniciar" : "Lontrium — could not start";
                     body = language == "pt" ? "A execução automática falhou antes de concluir. Abra o Lontrium para verificar." : language == "es" ? "La ejecución automática falló antes de finalizar. Abre Lontrium para comprobarlo." : "The automatic run failed before completion. Open Lontrium to investigate.";
+                }
+                else if (item.kind == "resource_deferred")
+                {
+                    title = language == "pt" ? "Lontrium — execução adiada" : language == "es" ? "Lontrium — ejecución pospuesta" : "Lontrium — run deferred";
+                    string process = string.IsNullOrEmpty(item.processName) ? (language == "pt" ? "uma aplicação pesada" : language == "es" ? "una aplicación pesada" : "a heavy application") : item.processName;
+                    string next = string.IsNullOrEmpty(item.nextRun) ? (language == "pt" ? "o próximo horário" : language == "es" ? "el próximo horario" : "the next scheduled time") : item.nextRun;
+                    string reason = item.reasonCode == "memory" ? (language == "pt" ? "pouca memória disponível" : language == "es" ? "poca memoria disponible" : "low available memory")
+                        : item.reasonCode == "cpu" ? (language == "pt" ? "CPU ocupada" : language == "es" ? "CPU ocupada" : "high CPU usage")
+                        : item.reasonCode == "gpu" ? (language == "pt" ? "GPU ocupada" : language == "es" ? "GPU ocupada" : "high GPU usage")
+                        : (language == "pt" ? "uma aplicação pesada em primeiro plano" : language == "es" ? "una aplicación pesada en primer plano" : "a heavy foreground application");
+                    body = language == "pt" ? string.Format("{0} foi detectada ({1}). A coleta foi adiada para {2}.", process, reason, next)
+                        : language == "es" ? string.Format("{0} fue detectada ({1}). La ejecución se pospuso para {2}.", process, reason, next)
+                        : string.Format("{0} was detected ({1}). The run was deferred until {2}.", process, reason, next);
                 }
                 else
                 {
@@ -352,7 +379,16 @@ namespace Lontrium.Notifier
         }
 
         private sealed class EventResponse { public bool enabled { get; set; } public ManualEvent[] events { get; set; } }
-        private sealed class ManualEvent { public string id { get; set; } public string kind { get; set; } public string store { get; set; } }
+        private sealed class ManualEvent
+        {
+            public string id { get; set; }
+            public string kind { get; set; }
+            public string store { get; set; }
+            public string processName { get; set; }
+            public string nextRun { get; set; }
+            public string reasonCode { get; set; }
+            public string lastSlot { get; set; }
+        }
         private sealed class ConfigResponse { public ScheduleValues values { get; set; } }
         private sealed class ScheduleValues
         {

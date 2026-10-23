@@ -39,6 +39,7 @@
 - Collects daily coin rewards from AliExpress and Shopee and shows the result and balance.
 - Shows the actual result of each run instead of only a generic success count.
 - On Windows, uses native scheduled tasks at the chosen times (12:00, 16:00 and 19:00 by default), catches up missed times, then releases Docker/WSL memory.
+- Before a scheduled Windows run, checks host RAM, CPU, GPU and the active fullscreen/high-load application. If the machine is busy, Docker is not started and the run is deferred to the next configured time; the final daily slot runs through soft pressure, but not critical low-memory pressure.
 - Skips stores already completed that day and retries only stores that failed, need login/CAPTCHA or have not run yet.
 - Opens a visual browser whenever a store requires manual login or confirmation.
 - Keeps the dashboard, settings, database and browser sessions on your computer.
