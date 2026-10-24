@@ -42,7 +42,7 @@ function t(key, params = {}) {
 }
 
 function renderVersion(config = latestConfig) {
-  const version = config?.version || '1.7.0';
+  const version = config?.version || '1.7.1';
   const label = `v${version.replace(/^v/, '')}`;
   const header = document.querySelector('#appVersion');
   const settings = document.querySelector('#settingsVersion');
@@ -211,10 +211,7 @@ function createStoreRow(store, globalRunning, retryPending = false) {
   const title = document.createElement('h3');
   title.className = 'store-name';
   title.textContent = store.name;
-  const key = document.createElement('p');
-  key.className = 'store-key';
-  key.textContent = store.authNoteKey ? t(store.authNoteKey) : store.key;
-  names.append(title, key);
+  names.append(title);
   identity.append(createStoreIcon(store), names);
   const state = document.createElement('div');
   state.className = 'store-state';
@@ -613,7 +610,7 @@ function helpSettingsBody() {
   copy.textContent = t('settings.helpCopy');
   const version = document.createElement('small');
   version.className = 'help-version';
-  version.textContent = `${t('settings.versionLabel')} ${latestConfig?.version || '1.7.0'}`;
+  version.textContent = `${t('settings.versionLabel')} ${latestConfig?.version || '1.7.1'}`;
   intro.append(title, copy, version);
   const cards = document.createElement('div');
   cards.className = 'help-grid';
@@ -641,6 +638,31 @@ function helpSettingsBody() {
   button.addEventListener('click', openOnboardingPreview);
   body.append(intro, cards, button);
   return body;
+}
+
+function openBrowserForStore(store) {
+  const browser = document.querySelector('#vncLink');
+  if (!browser?.href) {
+    showToast(t('storeAuth.browserUnavailable'), true);
+    return;
+  }
+  window.open(browser.href, '_blank', 'noopener,noreferrer');
+  showToast(t('storeAuth.browserOpened', {store: store.name}));
+}
+
+function createStoreLoginCard(store) {
+  const card = document.createElement('div');
+  card.className = 'store-login-card';
+  const copy = document.createElement('p');
+  const inherited = store.authMode === 'inherited';
+  copy.textContent = t(inherited ? 'storeAuth.configureInheritedCopy' : 'storeAuth.configureCopy', {store: store.name});
+  const button = document.createElement('button');
+  button.className = 'button secondary store-login-button';
+  button.type = 'button';
+  button.textContent = t(inherited ? 'storeAuth.configureInherited' : 'storeAuth.configure');
+  button.addEventListener('click', () => openBrowserForStore(store));
+  card.append(copy, button);
+  return card;
 }
 
 function introductionSettingsBody() {
@@ -703,12 +725,7 @@ function renderSettings(config) {
     }
     const storeKey = sectionKey.replace('section.', '');
     const store = latestStatus?.stores.find(item => item.key === storeKey);
-    if (store?.authNoteKey) {
-      const authNote = document.createElement('p');
-      authNote.className = 'settings-auth-note';
-      authNote.textContent = t(store.authNoteKey);
-      sectionBody.prepend(authNote);
-    }
+    if (store) sectionBody.prepend(createStoreLoginCard(store));
     panels.push(createSettingsPanel(sectionKey, sectionBody));
   }
   document.querySelector('#settingsContent').replaceChildren(...panels);

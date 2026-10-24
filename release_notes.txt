@@ -1,3 +1,11 @@
+### Lontrium Control v1.7.1
+
+- Fixed Settings layout on narrow windows: long labels wrap and horizontal clipping is removed.
+- Added a clear Browser login configuration action to every selected store section.
+- Simplified dashboard store rows by removing repeated authentication guidance.
+- Restored Brazilian Portuguese accents across Help and Settings descriptions.
+- Fixed the literal {version} placeholder in the Settings header.
+
 ### Lontrium Control v1.7.0
 
 - Settings now shows the installed version and only the selected store modules.

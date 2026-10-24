@@ -8,7 +8,11 @@ import os
 import nodriver as uc
 
 
-URL = os.environ.get("CLAIMER_PREVIEW_URL", "http://host.docker.internal:8765")
+URL = os.environ.get("CLAIMER_PREVIEW_URL", "http://127.0.0.1:8765")
+EDGE = os.environ.get(
+    "LONTRIUM_BROWSER_PATH",
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+)
 LOCALES = ("en", "pt-BR", "es")
 
 
@@ -77,6 +81,18 @@ async def check_settings_navigation(page) -> None:
     assert result["items"] == result["icons"]
     assert result["storeLogos"] > 0
     assert result["fits"]
+    await click(page, '.settings-nav-item[data-section="section.epic"]')
+    store_section = json.loads(await page.evaluate("""
+      JSON.stringify({
+        loginButtons: document.querySelectorAll('.store-login-button').length,
+        versionText: document.querySelector('#settingsDrawer').textContent,
+        contentFits: document.querySelector('.settings-content').scrollWidth <=
+          document.querySelector('.settings-content').clientWidth
+      })
+    """))
+    assert store_section["loginButtons"] >= 1
+    assert "{version}" not in store_section["versionText"]
+    assert store_section["contentFits"]
     await click(page, '.settings-nav-item[data-section="section.help"]')
     await click(page, ".help-panel .button")
     preview = json.loads(await page.evaluate("""
@@ -94,6 +110,7 @@ async def main() -> None:
     for viewport in ("1440,900", "390,844"):
         browser = await uc.start(
             headless=True,
+            browser_executable_path=EDGE,
             browser_args=[f"--window-size={viewport}", "--force-device-scale-factor=1"],
         )
         try:

@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.7.1] - 2026-10-24
+
+### Changed
+- Settings now adapts to the available panel width, wraps long labels and avoids horizontal clipping on narrow windows.
+- Dashboard store rows focus on the result; authentication guidance is kept inside each store's Settings section.
+- Every selected store now offers a clear **Configure login in Browser** action, with optional autofill fields kept in the advanced area.
+- Brazilian Portuguese translations restore accents in Help, tooltips and Settings descriptions.
+
+### Fixed
+- Removed the literal `{version}` placeholder from the Settings version label.
+- Fixed tooltip alignment and long notification labels that could point outside the visible panel.
+
 ## [1.7.0] - 2026-10-23
 
 ### Added
