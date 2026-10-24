@@ -41,7 +41,7 @@
     "saved": "{count} setting(s) saved.", "introductionTitle": "Use Lontrium without saving passwords",
     "introductionCopy": "Reopen the six-step introduction to review login, privacy, stores and automation. Previewing it does not change your current settings or start a run.",
     "noPasswordCopy": "You can sign in manually on every supported store that requires an account. Lontrium keeps the resulting browser session locally and reuses it until the store expires it.", "openIntroduction": "View introduction",
-    "helpTitle": "Lontrium Help", "helpCopy": "A permanent guide to browser sessions, optional credentials and store-specific login behavior.", "versionLabel": "Version {version}",
+    "helpTitle": "Lontrium Help", "helpCopy": "A permanent guide to browser sessions, optional credentials and store-specific login behavior.", "versionLabel": "Version",
     "automaticSignInTitle": "Optional automatic sign-in", "automaticSignInCopy": "These fields are optional. Leave them blank to use the browser session instead. Existing secrets are preserved when a secret field is blank.",
     "STORES": {"label": "Enabled stores"}, "SCHEDULER_HOURS": {"label": "Interval in hours"},
     "SCHEDULER_FIXED_TIMES": {"label": "Fixed times"}, "SCHEDULER_TIMEZONE": {"label": "Timezone"},

@@ -128,23 +128,54 @@ Lontrium Control has no account server and includes no telemetry.
 
 Credentials are optional; manual browser login is always available. Locally saved secrets are not protected by an external encryption server, so your Windows account and disk must remain secure. Lontrium Control never attempts to bypass CAPTCHA, anti-fraud or security challenges.
 
-## Designed for clarity
+## Interface tour
 
-Only enabled stores appear on the dashboard. Each row reports what happened: which game was claimed, which one was already owned, whether no giveaway was available, or how many AliExpress or Shopee coins were collected.
-
-### Guided setup
+The dashboard is designed to answer three questions quickly: what is enabled, what happened last time and what needs attention. Only selected stores appear in the active list, while each result shows the actual game, reward or coin outcome.
 
 <p align="center">
-  <img src="docs/images/04-credentials.png" alt="Credential field with its privacy explanation" width="1000">
+  <img src="docs/images/01-dashboard.png" alt="Lontrium Control dashboard with active stores, automation controls and local privacy summary" width="1100">
 </p>
 
-### AliExpress coin details
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <p align="center"><strong>Help and login model</strong></p>
+      <img src="docs/images/02-help.png" alt="Lontrium Help explaining browser sessions, optional credentials and store dependencies" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <p align="center"><strong>Store selection</strong></p>
+      <img src="docs/images/03-stores.png" alt="Lontrium Stores settings showing selected modules and authentication notes" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <p align="center"><strong>Schedule</strong></p>
+      <img src="docs/images/04-schedule.png" alt="Lontrium schedule settings with fixed times, timezone and automation options" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <p align="center"><strong>Browser session</strong></p>
+      <img src="docs/images/05-browser.png" alt="Lontrium browser settings for visual login and manual-login timeout" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <p align="center"><strong>Notifications</strong></p>
+      <img src="docs/images/06-notifications.png" alt="Lontrium notification settings with Apprise URL and Discord webhook explanations" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <p align="center"><strong>AliExpress result</strong></p>
+      <img src="docs/images/07-aliexpress.png" alt="Lontrium dashboard showing AliExpress coins, balance, streak and tomorrow's reward" width="100%">
+    </td>
+  </tr>
+</table>
+
+The six-step introduction keeps browser login as the recommended path. If optional autofill is selected, only the relevant credential fields are shown and each field has an immediate `?` explanation:
 
 <p align="center">
-  <img src="docs/images/06-aliexpress.png" alt="AliExpress daily coins, balance and streak" width="1000">
+  <img src="docs/images/08-credentials.png" alt="Lontrium optional credential field with its privacy explanation" width="1000">
 </p>
 
-Browser login is the recommended default, so the assistant does not request passwords unless the user explicitly selects local credential storage. Every credential field includes an accessible `?` explanation. The interface supports mouse, keyboard and touch, and is fully translated into English, Brazilian Portuguese and Spanish.
+The interface supports mouse, keyboard and touch, and is fully translated into English, Brazilian Portuguese and Spanish.
 
 ## Daily use
 
