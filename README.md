@@ -1,39 +1,38 @@
-<p align="center">
-  <img src="docs/images/lontrium-logo.png" alt="Lontrium Control" width="116">
+<div align="center">
+
+<p>
+  <img src="docs/images/lontrium-logo.png" alt="Lontrium Control" width="156">
 </p>
 
-<h1 align="center">Lontrium Control</h1>
+# Lontrium Control
 
-<p align="center">
-  <strong>Automação local para jogos grátis, recompensas diárias e ofertas digitais.</strong><br>
-  Escolha as lojas. O Lontrium cuida da rotina sem tirar suas credenciais do computador.
+### Automatize jogos grátis e recompensas diárias em um painel local e privado.
+
+Escolha as lojas, faça login pelo navegador e deixe o Lontrium cuidar da rotina —
+sem manter suas contas em um servidor externo.
+
+<p>
+  <a href="https://github.com/rafaelcairess/lontrium/releases/latest"><img alt="Versão estável" src="https://img.shields.io/github/v/release/rafaelcairess/lontrium?style=for-the-badge&label=RELEASE"></a>
+  <a href="https://github.com/rafaelcairess/lontrium/actions/workflows/release.yml"><img alt="Status da build" src="https://img.shields.io/github/actions/workflow/status/rafaelcairess/lontrium/release.yml?branch=main&style=for-the-badge&label=BUILD"></a>
+  <a href="https://github.com/rafaelcairess/lontrium/commits/main"><img alt="Último commit" src="https://img.shields.io/github/last-commit/rafaelcairess/lontrium?style=for-the-badge&label=LAST%20COMMIT"></a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/rafaelcairess/lontrium/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/rafaelcairess/lontrium?style=flat-square&label=release"></a>
-  <a href="https://github.com/rafaelcairess/lontrium/actions/workflows/release.yml"><img alt="Build and release" src="https://img.shields.io/github/actions/workflow/status/rafaelcairess/lontrium/release.yml?style=flat-square&label=build"></a>
-  <a href="./LICENSE"><img alt="AGPL-3.0 license" src="https://img.shields.io/github/license/rafaelcairess/lontrium?style=flat-square"></a>
+<p>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white">
+  <img alt="Playwright" src="https://img.shields.io/badge/Playwright-2EAD33?style=flat-square&logo=playwright&logoColor=white">
+  <img alt="AGPL-3.0" src="https://img.shields.io/badge/License-AGPL--3.0-8B5CF6?style=flat-square">
 </p>
 
-<p align="center">
-  <a href="https://github.com/rafaelcairess/lontrium/releases/latest/download/Lontrium-Setup.exe"><strong>Baixar para Windows</strong></a>
-  ·
-  <a href="#como-funciona">Como funciona</a>
-  ·
-  <a href="#para-desenvolvedores">Para desenvolvedores</a>
-</p>
+[Baixar para Windows](https://github.com/rafaelcairess/lontrium/releases/latest/download/Lontrium-Setup.exe) ·
+[Ver funcionalidades](#o-que-ele-faz) ·
+[Conhecer a arquitetura](#como-funciona)
 
-<p align="center">
-  <a href="./README.md">README principal</a> ·
-  <a href="./docs/README.pt-BR.md">Português do Brasil</a> ·
-  <a href="./docs/README.es.md">Español</a>
-</p>
+<br>
 
-<p align="center">
-  <img src="docs/images/01-dashboard.png" alt="Dashboard do Lontrium mostrando lojas ativas, automação e privacidade local" width="1000">
-</p>
+<img src="docs/images/01-dashboard.png" alt="Dashboard do Lontrium mostrando lojas ativas, automação e privacidade local" width="100%">
+
+</div>
 
 > [!NOTE]
 > A versão estável atual é a **v1.7.1**. O instalador e o arquivo `SHA256SUMS.txt` estão na [última release](https://github.com/rafaelcairess/lontrium/releases/latest).
@@ -119,29 +118,29 @@ Cada módulo acessa o site oficial, interpreta o resultado e salva um resumo est
 
 O Lontrium não possui servidor de contas nem telemetria própria. A segurança do perfil local depende da conta do Windows e do disco do usuário.
 
-## Interface
+## Demonstração
 
 O painel foi pensado para responder rapidamente a três perguntas: o que está ativo, o que aconteceu e o que precisa de atenção.
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <p align="center"><strong>Ajuda e login</strong></p>
       <img src="docs/images/02-help.png" alt="Área de ajuda do Lontrium explicando sessões e credenciais opcionais" width="100%">
+      <p align="center"><strong>Ajuda e login</strong></p>
     </td>
     <td width="50%" valign="top">
-      <p align="center"><strong>Lojas selecionadas</strong></p>
       <img src="docs/images/03-stores.png" alt="Configurações de lojas do Lontrium" width="100%">
+      <p align="center"><strong>Lojas selecionadas</strong></p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <p align="center"><strong>Agendamento</strong></p>
       <img src="docs/images/04-schedule.png" alt="Configurações de agendamento do Lontrium" width="100%">
+      <p align="center"><strong>Agendamento</strong></p>
     </td>
     <td width="50%" valign="top">
-      <p align="center"><strong>Notificações</strong></p>
       <img src="docs/images/06-notifications.png" alt="Configurações de notificações do Lontrium" width="100%">
+      <p align="center"><strong>Notificações</strong></p>
     </td>
   </tr>
 </table>
