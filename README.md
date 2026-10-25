@@ -1,163 +1,169 @@
 <div align="center">
 
-<p>
-  <img src="docs/images/lontrium-logo.png" alt="Lontrium Control" width="156">
-</p>
+<img src="docs/images/lontrium-logo.png" alt="Lontrium Control" width="132">
 
 # Lontrium Control
 
-### Automatize jogos grátis e recompensas diárias em um painel local e privado.
+### Jogos grátis, recompensas diárias e ofertas digitais em um único painel local.
 
-Escolha as lojas, faça login pelo navegador e deixe o Lontrium cuidar da rotina —
-sem manter suas contas em um servidor externo.
+O Lontrium automatiza tarefas repetitivas em lojas oficiais, preserva as sessões no seu computador
+e sabe esperar quando você está jogando ou usando um aplicativo pesado.
 
 <p>
-  <a href="https://github.com/rafaelcairess/lontrium/releases/latest"><img alt="Versão estável" src="https://img.shields.io/github/v/release/rafaelcairess/lontrium?style=for-the-badge&label=RELEASE"></a>
-  <a href="https://github.com/rafaelcairess/lontrium/actions/workflows/release.yml"><img alt="Status da build" src="https://img.shields.io/github/actions/workflow/status/rafaelcairess/lontrium/release.yml?branch=main&style=for-the-badge&label=BUILD"></a>
-  <a href="https://github.com/rafaelcairess/lontrium/commits/main"><img alt="Último commit" src="https://img.shields.io/github/last-commit/rafaelcairess/lontrium?style=for-the-badge&label=LAST%20COMMIT"></a>
+  <a href="https://github.com/rafaelcairess/lontrium/releases/latest"><img alt="Última versão" src="https://img.shields.io/github/v/release/rafaelcairess/lontrium?style=for-the-badge&label=VERSÃO"></a>
+  <a href="https://github.com/rafaelcairess/lontrium/actions/workflows/release.yml"><img alt="Testes" src="https://img.shields.io/github/actions/workflow/status/rafaelcairess/lontrium/release.yml?branch=main&style=for-the-badge&label=TESTES"></a>
+  <a href="./LICENSE"><img alt="Licença AGPL-3.0" src="https://img.shields.io/github/license/rafaelcairess/lontrium?style=for-the-badge"></a>
 </p>
 
 <p>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white">
-  <img alt="Playwright" src="https://img.shields.io/badge/Playwright-2EAD33?style=flat-square&logo=playwright&logoColor=white">
-  <img alt="AGPL-3.0" src="https://img.shields.io/badge/License-AGPL--3.0-8B5CF6?style=flat-square">
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-0078D4?style=flat-square&logo=windows11&logoColor=white">
+  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white">
 </p>
 
-[Baixar para Windows](https://github.com/rafaelcairess/lontrium/releases/latest/download/Lontrium-Setup.exe) ·
-[Ver funcionalidades](#o-que-ele-faz) ·
-[Conhecer a arquitetura](#como-funciona)
+[**Baixar para Windows**](https://github.com/rafaelcairess/lontrium/releases/latest/download/Lontrium-Setup.exe)
+· [Ver o produto](#visão-do-produto)
+· [Entender a arquitetura](#como-funciona)
+· [Abrir uma issue](https://github.com/rafaelcairess/lontrium/issues)
 
 <br>
 
-<img src="docs/images/01-dashboard.png" alt="Dashboard do Lontrium mostrando lojas ativas, automação e privacidade local" width="100%">
+<img src="docs/images/01-dashboard.png" alt="Dashboard do Lontrium com lojas ativas, resultados e automação" width="100%">
 
 </div>
 
-> [!NOTE]
-> A versão estável atual é a **v1.7.1**. O instalador e o arquivo `SHA256SUMS.txt` estão na [última release](https://github.com/rafaelcairess/lontrium/releases/latest).
+## Por que o Lontrium existe?
 
-## Em poucas palavras
+Jogos gratuitos, moedas diárias e ofertas temporárias ficam espalhados por diferentes lojas. Acompanhar tudo manualmente exige abrir vários sites, lembrar horários e repetir os mesmos passos todos os dias.
 
-O Lontrium é um aplicativo local para Windows que reúne tarefas repetitivas de lojas digitais em um único painel. Ele abre os sites oficiais em um navegador visual, reutiliza sessões persistentes, registra o resultado de cada execução e agenda novas tentativas quando uma loja precisa de atenção.
+O **Lontrium Control** reúne essa rotina em uma interface única. Ele executa somente os módulos escolhidos, mostra o resultado real de cada tentativa e devolve o controle ao usuário quando encontra login, CAPTCHA ou verificação de segurança.
 
-O projeto nasceu de um problema simples: ofertas e recompensas expiram enquanto o usuário está trabalhando, jogando ou longe do computador. A proposta é automatizar o trabalho mecânico sem transformar senhas, cookies ou histórico em dados de um servidor externo.
+## Principais recursos
 
-## O que ele faz
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <strong>Jogos e recompensas</strong><br>
+      Verifica ofertas elegíveis e coleta recompensas diárias das lojas habilitadas.
+    </td>
+    <td width="33%" valign="top">
+      <strong>Agendamento inteligente</strong><br>
+      Executa nos horários escolhidos e não repete o que já foi concluído no dia.
+    </td>
+    <td width="33%" valign="top">
+      <strong>Proteção de recursos</strong><br>
+      Analisa RAM, CPU, GPU e aplicativos em tela cheia antes de iniciar o Docker.
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top">
+      <strong>Login pelo navegador</strong><br>
+      Mantém sessões locais e deixa credenciais salvas como recurso opcional.
+    </td>
+    <td width="33%" valign="top">
+      <strong>Privacidade local</strong><br>
+      Dashboard, configurações, sessões e histórico permanecem no computador.
+    </td>
+    <td width="33%" valign="top">
+      <strong>Resultados claros</strong><br>
+      Exibe jogos, moedas, saldo, sequência e ações que ainda precisam de atenção.
+    </td>
+  </tr>
+</table>
 
-| Área | Experiência do usuário |
-| --- | --- |
-| Jogos e ofertas | Verifica jogos grátis, ativos e ofertas elegíveis nas lojas selecionadas. |
-| Recompensas | Coleta recompensas diárias do AliExpress e da Shopee quando a sessão está disponível. |
-| Agendamento | Executa nos horários escolhidos e retoma tarefas pendentes sem repetir o que já foi concluído no dia. |
-| Login | Prioriza login manual no navegador; credenciais salvas são apenas um recurso opcional de preenchimento. |
-| Segurança operacional | Nunca tenta contornar CAPTCHA, antifraude, login Google ou códigos de verificação. |
-| Uso do computador | Avalia RAM, CPU, GPU e aplicativos pesados antes de iniciar uma execução agendada. Se o computador estiver ocupado, adia para o próximo horário configurado. |
-| Privacidade | Dashboard, configurações, banco local e sessões do navegador permanecem no computador do usuário. |
+## Integrações
 
-## Lojas suportadas
-
-O usuário escolhe quais módulos quer habilitar. Apenas as lojas selecionadas aparecem no dashboard e nas configurações.
-
-| Loja ou módulo | O que é automatizado | Login |
+| Categoria | Módulos | Autenticação |
 | --- | --- | --- |
-| Epic Games | Jogos grátis e ofertas elegíveis | Navegador ou credenciais opcionais |
-| GOG | Giveaways atuais | Navegador ou credenciais opcionais |
-| Prime Gaming | Ofertas e resgates compatíveis | Navegador ou credenciais opcionais |
-| Steam, Ubisoft, Fab e Unity | Ofertas e ativos disponíveis no fluxo da loja | Conforme a loja |
-| AliExpress | Check-in, moedas, saldo e sequência | Navegador ou credenciais opcionais |
-| Shopee | Check-in e saldo | **Login manual no navegador** |
-| GamerPower | Descoberta de giveaways e fontes parceiras | Depende do destino |
+| Jogos e ativos | Epic Games, GOG, Prime Gaming, Steam, Ubisoft, Fab e Unity | Sessão do navegador ou preenchimento opcional, conforme a loja |
+| Recompensas diárias | AliExpress e Shopee | AliExpress aceita preenchimento opcional; Shopee usa login manual |
+| Descoberta de ofertas | GamerPower, Fanatical, itch.io e IndieGala | Depende da loja de destino |
 
-O GamerPower pode usar fontes opcionais como Fanatical, itch.io e IndieGala. O Fab reutiliza a sessão da Epic e não exige credenciais próprias.
+O Fab reutiliza a sessão da Epic Games. O Lontrium não tenta contornar CAPTCHA, antifraude, login social ou confirmação por código.
 
-> [!IMPORTANT]
-> Para o Shopee, use **Continue with Google** no navegador visual. Essa é a forma recomendada pelo Lontrium porque o login direto pode ser recusado pelos mecanismos de segurança da loja.
+## Comece em três passos
 
-## Instalação rápida
+1. Baixe o [instalador da versão mais recente](https://github.com/rafaelcairess/lontrium/releases/latest/download/Lontrium-Setup.exe).
+2. Execute o instalador e conclua o assistente inicial.
+3. Escolha as lojas e faça login no navegador visual quando solicitado.
 
-1. Baixe [`Lontrium-Setup.exe`](https://github.com/rafaelcairess/lontrium/releases/latest/download/Lontrium-Setup.exe) na release mais recente.
-2. Execute o instalador. Se necessário, ele explica a instalação do Docker Desktop e pede confirmação antes de prosseguir.
-3. Siga o assistente, selecione as lojas e faça o login no navegador visual quando solicitado.
-
-Depois disso, abra o Lontrium pelo menu Iniciar ou pelo atalho criado na área de trabalho. Não é necessário clonar o repositório, editar arquivos `.env` ou digitar comandos Docker para usar a versão distribuída.
+O instalador cria o atalho do Lontrium e prepara a execução local. Se o Docker Desktop estiver ausente, o launcher explica por que ele é necessário e solicita confirmação antes da instalação.
 
 > [!TIP]
-> Você não precisa entregar suas senhas ao Lontrium. O login pelo navegador é o caminho recomendado: a sessão fica no perfil local e é reutilizada até a loja pedir uma nova autenticação.
+> O login pelo navegador é recomendado. A sessão fica no perfil local e é reutilizada até a própria loja solicitar uma nova autenticação.
+
+## Visão do produto
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/02-help.png" alt="Ajuda do Lontrium sobre sessões e login" width="100%">
+      <p align="center"><strong>Ajuda e modelo de login</strong></p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/03-stores.png" alt="Seleção de lojas do Lontrium" width="100%">
+      <p align="center"><strong>Seleção de lojas</strong></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/04-schedule.png" alt="Agendamento do Lontrium" width="100%">
+      <p align="center"><strong>Automação e horários</strong></p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/06-notifications.png" alt="Notificações do Lontrium" width="100%">
+      <p align="center"><strong>Alertas e integrações</strong></p>
+    </td>
+  </tr>
+</table>
 
 ## Como funciona
 
 ```text
 Agendador do Windows
         │
-        ├── verifica se o computador está disponível
-        ├── adia a execução se houver jogo ou carga alta
-        ├── inicia Docker somente quando necessário
-        ├── executa apenas lojas pendentes no dia
-        └── encerra os recursos que ele próprio iniciou
+        ├── verifica CPU, GPU, memória e aplicativo em primeiro plano
+        ├── adia a execução quando o computador está ocupado
+        ├── inicia Docker e o container somente quando necessário
+        ├── executa apenas os módulos ainda pendentes no dia
+        └── libera os recursos iniciados pelo próprio Lontrium
                 │
-                ├── Dashboard local:  http://127.0.0.1:8080
-                ├── Navegador visual:  http://127.0.0.1:7080
-                └── Volume persistente:
-                      ├── configurações e credenciais opcionais
-                      ├── perfil de navegador por loja
+                ├── Dashboard local  →  127.0.0.1:8080
+                ├── Navegador visual →  127.0.0.1:7080
+                └── Volume local
+                      ├── configurações
+                      ├── sessões separadas por loja
                       └── histórico sanitizado de 90 dias
 ```
 
-Cada módulo acessa o site oficial, interpreta o resultado e salva um resumo estruturado. CAPTCHA, antifraude, login social e confirmação por código continuam sob controle do usuário no navegador visual.
+### Decisões de engenharia
 
-## Privacidade e segurança
+| Camada | Implementação | Objetivo |
+| --- | --- | --- |
+| Automação | Python assíncrono, nodriver e Chrome DevTools Protocol | Controlar os sites com sessões persistentes e intervenção visual |
+| Agendamento | APScheduler e Agendador de Tarefas do Windows | Recuperar horários perdidos e evitar execuções duplicadas |
+| Estado local | SQLite assíncrono e SQLAlchemy | Preservar resultados e configurações entre atualizações |
+| Interface | Servidor HTTP local, JavaScript, HTML e CSS | Entregar um painel leve sem depender de um serviço externo |
+| Distribuição | Docker, PowerShell e Inno Setup | Fornecer instalação e atualização reproduzíveis no Windows |
+| Qualidade | pytest, testes de interface, validação de idiomas e GitHub Actions | Verificar os fluxos antes de cada release |
 
-| Dado | Onde fica |
-| --- | --- |
-| Dashboard e configurações | Computador local, em `127.0.0.1` |
-| Sessões do navegador | Volume local do Docker |
-| Histórico de execuções | Banco SQLite local, limitado a 90 dias |
-| Segredos da API | O frontend recebe apenas se estão configurados, nunca o valor |
-| Comunicação com lojas | Navegador automatizado acessando os sites oficiais |
+## Privacidade por padrão
 
-O Lontrium não possui servidor de contas nem telemetria própria. A segurança do perfil local depende da conta do Windows e do disco do usuário.
+- O painel responde apenas em `127.0.0.1`.
+- Sessões e credenciais opcionais ficam no volume local do Docker.
+- Valores secretos nunca são devolvidos ao frontend; ele recebe somente o estado “configurado”.
+- Não há servidor de contas ou telemetria operado pelo projeto.
+- Atualizações são verificadas nas releases oficiais deste repositório.
 
-## Demonstração
+## Desenvolvimento
 
-O painel foi pensado para responder rapidamente a três perguntas: o que está ativo, o que aconteceu e o que precisa de atenção.
+<details>
+<summary><strong>Executar verificações locais e consultar a documentação técnica</strong></summary>
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="docs/images/02-help.png" alt="Área de ajuda do Lontrium explicando sessões e credenciais opcionais" width="100%">
-      <p align="center"><strong>Ajuda e login</strong></p>
-    </td>
-    <td width="50%" valign="top">
-      <img src="docs/images/03-stores.png" alt="Configurações de lojas do Lontrium" width="100%">
-      <p align="center"><strong>Lojas selecionadas</strong></p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="docs/images/04-schedule.png" alt="Configurações de agendamento do Lontrium" width="100%">
-      <p align="center"><strong>Agendamento</strong></p>
-    </td>
-    <td width="50%" valign="top">
-      <img src="docs/images/06-notifications.png" alt="Configurações de notificações do Lontrium" width="100%">
-      <p align="center"><strong>Notificações</strong></p>
-    </td>
-  </tr>
-</table>
+<br>
 
-## Para desenvolvedores
-
-O instalador é o caminho recomendado para usuários finais. Para executar a aplicação a partir do código-fonte, consulte [`MODIFICATIONS.md`](./MODIFICATIONS.md) e [`.env.example`](./.env.example).
-
-### Stack
-
-- **Python 3.11+** para API, módulos de lojas e automação.
-- **Playwright** para os fluxos de navegador visual e sessões persistentes.
-- **Docker Compose** para isolar a aplicação e seus serviços locais.
-- **JavaScript, HTML e CSS** para o dashboard, configurações e onboarding.
-- **GitHub Actions** para testes, build da imagem e publicação do instalador Windows.
-
-### Qualidade
+O instalador é o caminho recomendado para usuários finais. Para trabalhar no código-fonte, consulte [`.env.example`](./.env.example) e [`MODIFICATIONS.md`](./MODIFICATIONS.md).
 
 ```powershell
 python -m pytest -q
@@ -165,24 +171,29 @@ node --check src/gui/static/app.js
 node --test tests/test_i18n.js
 ```
 
-O conjunto de testes cobre módulos de loja, API local, fluxo de configuração, traduções, proteção de segredos, launcher Windows e comportamento do agendamento.
+A suíte cobre módulos de loja, API local, segredos, traduções, onboarding, launcher Windows e agendamento.
 
-Para contribuir, abra uma issue descrevendo o problema ou envie um pull request pequeno e reproduzível. Nunca inclua senhas, cookies, chaves TOTP ou logs não sanitizados.
+</details>
 
-## Documentação
+## Links do projeto
 
-- [Guia em português](./docs/README.pt-BR.md)
-- [Guía en español](./docs/README.es.md)
+- [Releases e instalador](https://github.com/rafaelcairess/lontrium/releases)
 - [Histórico de alterações](./CHANGELOG.md)
+- [Manual completo em português](./docs/README.pt-BR.md)
+- [Documentação em espanhol](./docs/README.es.md)
 - [Verificação da proteção de recursos](./docs/RESOURCE_GUARD_VERIFICATION.md)
 - [Notas de terceiros](./THIRD_PARTY_NOTICES.md)
 
-## Créditos e licença
+## Créditos
 
-**Lontrium Control e distribuição para Windows:** [Rafael Caires](https://github.com/rafaelcairess).
+Criado e mantido por **[Rafael Caires](https://github.com/rafaelcairess)**.
 
-O projeto foi construído a partir do [Free-Games-Claimer-Remaster](https://github.com/P-Adamiec/Free-Games-Claimer-Remaster), mantido por Paweł Adamiec e colaboradores, e inspirado no [free-games-claimer](https://github.com/vogler/free-games-claimer).
+O Lontrium foi construído a partir do [Free-Games-Claimer-Remaster](https://github.com/P-Adamiec/Free-Games-Claimer-Remaster), mantido por Paweł Adamiec e colaboradores, e inspirado no [free-games-claimer](https://github.com/vogler/free-games-claimer).
 
 Distribuído sob a [GNU Affero General Public License v3.0](./LICENSE).
 
-Se o Lontrium for útil para você, uma ⭐ no GitHub ajuda o projeto a alcançar mais pessoas.
+<div align="center">
+
+Se o projeto for útil para você, deixe uma ⭐. Isso ajuda outras pessoas a encontrarem o Lontrium.
+
+</div>
