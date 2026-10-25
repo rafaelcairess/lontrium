@@ -117,7 +117,7 @@ Cada módulo acessa o site oficial, interpreta o resultado e salva um resumo est
 | Segredos da API | O frontend recebe apenas se estão configurados, nunca o valor |
 | Comunicação com lojas | Navegador automatizado acessando os sites oficiais |
 
-O Lontrium não possui servidor de contas nem telemetria própria. A segurança do perfil local depende da conta do Windows e do disco do usuário. Consulte [`SECURITY.md`](./SECURITY.md) para reportar vulnerabilidades.
+O Lontrium não possui servidor de contas nem telemetria própria. A segurança do perfil local depende da conta do Windows e do disco do usuário.
 
 ## Interface
 
@@ -173,8 +173,6 @@ Para contribuir, abra uma issue descrevendo o problema ou envie um pull request 
 ## Documentação
 
 - [Guia em português](./docs/README.pt-BR.md)
-- [Guia para colaboradores](./CONTRIBUTING.md)
-- [Política de segurança](./SECURITY.md)
 - [Guía en español](./docs/README.es.md)
 - [Histórico de alterações](./CHANGELOG.md)
 - [Verificação da proteção de recursos](./docs/RESOURCE_GUARD_VERIFICATION.md)
