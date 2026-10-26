@@ -27,7 +27,7 @@
 </p>
 
 > [!NOTE]
-> **O Lontrium Control v1.7.1 é a versão atual.** Baixe o instalador acima e confira o arquivo [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
+> **O Lontrium Control v1.7.2 é a versão atual.** Baixe o instalador acima e confira o arquivo [`SHA256SUMS.txt`](https://github.com/rafaelcairess/lontrium/releases/latest/download/SHA256SUMS.txt).
 
 <p align="center">
   <img src="images/05-dashboard.png" alt="Painel do Lontrium Control mostrando jogos e resultados do AliExpress e da Shopee" width="1100">

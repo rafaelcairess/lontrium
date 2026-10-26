@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.7.2] - 2026-10-26
+
+### Fixed
+- Scheduled Windows runs now wait for the dashboard run identifier instead of reporting a false `busy` conflict and shutting Docker down while collection is starting.
+- Packaged runs no longer repeat the host resource preflight inside Docker.
+- HTTP conflict reasons from the dashboard are preserved by the Windows launcher instead of becoming a generic PowerShell error.
+
+### Changed
+- Automatic launcher failures are recorded in `%LOCALAPPDATA%\Lontrium Control\scheduled-run.log`, and the Windows notification points to that diagnostic file.
+
 ## [1.7.1] - 2026-10-24
 
 ### Changed

@@ -12,6 +12,7 @@ Describe "Lontrium Control launcher flow" {
         Mock Start-SourceApplication {}
         Mock Start-SourceBuildApplication {}
         Mock Show-WindowsLauncherFailure {}
+        Mock Write-ScheduledRunDiagnostic {}
         Mock Install-DockerDesktop {}
         Mock Test-DockerReady { $false }
         Mock Test-LontriumContainerRunning { $false }
@@ -136,6 +137,9 @@ Describe "Lontrium Control launcher flow" {
 
         if ($result -ne 1) { throw "Expected a failed scheduled launch" }
         Assert-MockCalled Show-WindowsLauncherFailure -Times 1 -Exactly -Scope It
+        Assert-MockCalled Write-ScheduledRunDiagnostic -Times 1 -Exactly -Scope It -ParameterFilter {
+            $Message -eq "startup failed"
+        }
     }
 }
 

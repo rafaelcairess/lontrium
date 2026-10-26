@@ -42,7 +42,7 @@ function t(key, params = {}) {
 }
 
 function renderVersion(config = latestConfig) {
-  const version = config?.version || '1.7.1';
+  const version = config?.version || '1.7.2';
   const label = `v${version.replace(/^v/, '')}`;
   const header = document.querySelector('#appVersion');
   const settings = document.querySelector('#settingsVersion');
@@ -610,7 +610,7 @@ function helpSettingsBody() {
   copy.textContent = t('settings.helpCopy');
   const version = document.createElement('small');
   version.className = 'help-version';
-  version.textContent = `${t('settings.versionLabel')} ${latestConfig?.version || '1.7.1'}`;
+  version.textContent = `${t('settings.versionLabel')} ${latestConfig?.version || '1.7.2'}`;
   intro.append(title, copy, version);
   const cards = document.createElement('div');
   cards.className = 'help-grid';

@@ -82,3 +82,46 @@ def test_global_timeout_cancels_cleanup_and_persists_remaining_stores(monkeypatc
     assert len(persisted) == 2
     assert {item["messageKey"] for item in persisted} == {"status.runTimeout"}
     assert state.snapshot(["steam", "epic"])["running"] is False
+
+
+def test_windows_host_preflight_skips_duplicate_container_probe(monkeypatch):
+    calls = []
+
+    async def fake_run(stores, *, retry_incomplete=False):
+        calls.append((stores, retry_incomplete))
+
+    def unexpected_probe():
+        raise AssertionError("the Windows host already completed the resource preflight")
+
+    monkeypatch.setattr(main, "run_claimers", fake_run)
+    monkeypatch.setattr(main, "sample_resources", unexpected_probe)
+    monkeypatch.setattr(main.cfg, "resource_guard_enabled", True)
+    monkeypatch.setattr(main, "save_last_automatic_run", lambda *_args, **_kwargs: asyncio.sleep(0))
+
+    asyncio.run(main.run_claimers_scheduled(
+        ["steam"],
+        automatic=True,
+        retry_incomplete=True,
+        host_preflight_complete=True,
+    ))
+
+    assert calls == [(["steam"], True)]
+
+
+def test_dashboard_waits_for_delayed_run_identifier(monkeypatch):
+    state = DashboardState()
+    monkeypatch.setattr(main, "dashboard_state", state)
+
+    async def delayed_start():
+        await asyncio.sleep(0.15)
+        return state.begin_run(["steam"])
+
+    async def scenario():
+        task = asyncio.create_task(delayed_start())
+        run_id = await main._wait_for_dashboard_run_start(task, None, timeout=1)
+        await task
+        return run_id
+
+    run_id = asyncio.run(scenario())
+
+    assert run_id == state.current_run_id()

@@ -70,6 +70,6 @@ class TestProductReadme:
     def test_product_promises_and_attribution_remain_visible(self):
         assert "Lontrium-Setup.exe" in README
         assert "rafaelcairess/lontrium" in README
-        assert "Your data stays local" in README
+        assert "Privacidade local" in README
         assert "P-Adamiec/Free-Games-Claimer-Remaster" in README
         assert "GNU Affero General Public License v3.0" in README

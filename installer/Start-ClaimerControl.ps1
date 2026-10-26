@@ -41,6 +41,7 @@ $Messages = @{
         EconomyTimeout = "The automatic run did not finish in time. Releasing resources started by Lontrium..."
         EconomySharedDocker = "Another container is running. Lontrium was stopped, but Docker will remain available for the other application."
         ScheduleComplete = "Today's enabled stores are already complete. Releasing resources..."
+        ScheduleDeferred = "This run was deferred because the computer is busy. Lontrium will try again at the next scheduled time."
         ScheduleSynced = "Windows automation schedule updated."
         UpdateCheck = "Checking the official Lontrium Control Release..."
         UpToDate = "Lontrium Control is already up to date."
@@ -78,6 +79,7 @@ $Messages = @{
         EconomyTimeout = "A coleta automática não terminou a tempo. Liberando os recursos iniciados pelo Lontrium..."
         EconomySharedDocker = "Outro container está em execução. O Lontrium foi parado, mas o Docker continuará disponível para o outro aplicativo."
         ScheduleComplete = "As lojas habilitadas já foram concluídas hoje. Liberando recursos..."
+        ScheduleDeferred = "Esta execução foi adiada porque o computador está ocupado. O Lontrium tentará novamente no próximo horário."
         ScheduleSynced = "Agendamento automático do Windows atualizado."
         UpdateCheck = "Consultando a Release oficial do Lontrium Control..."
         UpToDate = "O Lontrium Control já está atualizado."
@@ -115,6 +117,7 @@ $Messages = @{
         EconomyTimeout = "La ejecución automática no terminó a tiempo. Liberando los recursos iniciados por Lontrium..."
         EconomySharedDocker = "Hay otro contenedor en ejecución. Lontrium se detuvo, pero Docker seguirá disponible para la otra aplicación."
         ScheduleComplete = "Las tiendas habilitadas ya se completaron hoy. Liberando recursos..."
+        ScheduleDeferred = "Esta ejecución se aplazó porque el equipo está ocupado. Lontrium volverá a intentarlo en el próximo horario."
         ScheduleSynced = "Programación automática de Windows actualizada."
         UpdateCheck = "Consultando la Release oficial de Lontrium Control..."
         UpToDate = "Lontrium Control ya está actualizado."
@@ -162,6 +165,7 @@ $ScheduledTaskName = "Lontrium Control - Automatic Collection"
 $PendingModePath = Join-Path $PSScriptRoot "installer-mode.pending"
 $StateDirectory = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) "Lontrium Control"
 $SmartWakePath = Join-Path $StateDirectory "smart_wake.txt"
+$ScheduledRunLogPath = Join-Path $StateDirectory "scheduled-run.log"
 $LegacySmartWakePath = Join-Path $PSScriptRoot "state\smart_wake.txt"
 $ScheduleTimesPath = Join-Path $StateDirectory "schedule_times.txt"
 
@@ -820,6 +824,18 @@ function Show-WindowsLauncherFailure {
     }
 }
 
+function Write-ScheduledRunDiagnostic([string]$Message) {
+    try {
+        if (-not (Test-Path -LiteralPath $StateDirectory)) {
+            New-Item -ItemType Directory -Path $StateDirectory -Force | Out-Null
+        }
+        $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss zzz", [Globalization.CultureInfo]::InvariantCulture)
+        "[$timestamp] $Message" | Out-File -FilePath $ScheduledRunLogPath -Encoding utf8 -Append
+    } catch {
+        # Diagnostics must never replace the original launcher error.
+    }
+}
+
 function Show-PendingWindowsAttention {
     if (-not (Test-Path -LiteralPath $NotifierPath)) { return }
     try {
@@ -927,7 +943,27 @@ function Invoke-ScheduledDashboardRun {
         localDate = $now.ToString("yyyy-MM-dd", [Globalization.CultureInfo]::InvariantCulture)
         utcOffsetMinutes = [int][TimeZoneInfo]::Local.GetUtcOffset($now).TotalMinutes
     } | ConvertTo-Json -Compress
-    return Invoke-RestMethod -Uri "$PanelUrl/api/run" -Method Post -ContentType "application/json" -Headers @{"X-FGC-Token" = $token} -Body $payload -TimeoutSec 15
+    try {
+        return Invoke-RestMethod -Uri "$PanelUrl/api/run" -Method Post -ContentType "application/json" -Headers @{"X-FGC-Token" = $token} -Body $payload -TimeoutSec 15
+    } catch {
+        # PowerShell throws for HTTP 409 and otherwise hides the structured API
+        # reason. Preserve it so the scheduled flow can make the right decision.
+        $response = $_.Exception.Response
+        if ($response -and [int]$response.StatusCode -eq 409) {
+            $stream = $response.GetResponseStream()
+            if ($stream) {
+                $reader = New-Object System.IO.StreamReader($stream)
+                try {
+                    $body = $reader.ReadToEnd()
+                    if ($body) { return $body | ConvertFrom-Json }
+                } finally {
+                    $reader.Dispose()
+                    $stream.Dispose()
+                }
+            }
+        }
+        throw
+    }
 }
 
 function Wait-ScheduledRun([string]$RunId) {
@@ -1060,6 +1096,10 @@ function Start-ScheduledApplication(
                 New-Item -ItemType Directory -Path $StateDirectory -Force | Out-Null
             }
             $nowStr | Out-File -FilePath $SmartWakePath -Encoding ascii -Force
+            return
+        }
+        if (-not $run.accepted -and $run.reason -eq "resource-deferred") {
+            Write-Host $Script:Text.ScheduleDeferred -ForegroundColor Yellow
             return
         }
         if (-not $run.accepted) { throw "The scheduled run was not accepted: $($run.reason)" }
@@ -1228,7 +1268,10 @@ function Invoke-ClaimerControl(
         return 0
     } catch {
         Write-Host ($Script:Text.Failed -f $_.Exception.Message) -ForegroundColor Red
-        if ($RequestedAction -in @("scheduled", "economy")) { Show-WindowsLauncherFailure }
+        if ($RequestedAction -in @("scheduled", "economy")) {
+            Write-ScheduledRunDiagnostic $_.Exception.Message
+            Show-WindowsLauncherFailure
+        }
         return 1
     } finally {
         Stop-UnattendedFocusGuard

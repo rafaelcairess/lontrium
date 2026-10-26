@@ -1,6 +1,6 @@
 """Version and attribution information for Lontrium Control."""
 
-__version__ = "1.7.1"
+__version__ = "1.7.2"
 __product__ = "Lontrium Control"
 __author__ = "Paweł Adamiec"
 __maintainer__ = "Rafael Caires"

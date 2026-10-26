@@ -497,6 +497,7 @@ async def run_claimers_scheduled(
     automatic: bool = False,
     retry_incomplete: bool = False,
     scheduled_slot: str | None = None,
+    host_preflight_complete: bool = False,
 ) -> None:
     """Run claimers from scheduler jobs without overlapping executions."""
     if _claim_run_lock.locked():
@@ -506,7 +507,10 @@ async def run_claimers_scheduled(
     async with _claim_run_lock:
         executed = False
         try:
-            if automatic and cfg.resource_guard_enabled:
+            # Packaged Windows runs are checked before Docker is started. Running
+            # the fallback probe again inside the container delays creation of the
+            # dashboard run id and can produce a false `busy` response.
+            if automatic and cfg.resource_guard_enabled and not host_preflight_complete:
                 fixed_times = _parse_fixed_times(cfg.scheduler_fixed_times)
                 last_slot = False
                 next_slot = None
@@ -564,6 +568,25 @@ def _next_interval_run(
     last = last_automatic_run.replace(tzinfo=timezone.utc) if last_automatic_run.tzinfo is None else last_automatic_run.astimezone(timezone.utc)
     due = last + timedelta(hours=interval_hours)
     return due if due > current else current + timedelta(hours=interval_hours)
+
+
+async def _wait_for_dashboard_run_start(
+    task: asyncio.Task,
+    previous_run_id: str | None,
+    *,
+    timeout: float = 5.0,
+) -> str | None:
+    """Wait briefly for a newly-created task to publish its dashboard run id."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        run_id = dashboard_state.current_run_id()
+        if run_id and run_id != previous_run_id:
+            return run_id
+        if task.done():
+            return None
+        await asyncio.sleep(0.05)
+    return None
 
 
 def _startup_run_due(
@@ -864,16 +887,33 @@ async def main() -> None:
                     stores,
                     automatic=mode == "scheduled-retry",
                     retry_incomplete=mode == "scheduled-retry",
+                    host_preflight_complete=(
+                        mode == "scheduled-retry" and cfg.windows_host_scheduler
+                    ),
                 )
             )
-            for _ in range(10):
-                await asyncio.sleep(0)
-                if dashboard_state.current_run_id() != previous_run_id:
-                    break
+            # Starting a run may include asynchronous preflight work. Yielding a
+            # fixed handful of event-loop turns was too short (especially while
+            # Docker was warming up), so the API could report `busy` before the
+            # run id existed. The Windows launcher then shut down a run that had
+            # actually started. Wait for the explicit run id with a bounded
+            # deadline instead.
+            run_id = await _wait_for_dashboard_run_start(
+                _dashboard_run_task,
+                previous_run_id,
+            )
             if mode:
-                run_id = dashboard_state.current_run_id()
-                if not run_id or run_id == previous_run_id:
-                    return {"accepted": False, "reason": "busy", "stores": stores or []}
+                if not run_id:
+                    if _dashboard_run_task.done():
+                        error = _dashboard_run_task.exception()
+                        if error is not None:
+                            raise error
+                        return {
+                            "accepted": False,
+                            "reason": "resource-deferred",
+                            "stores": stores or [],
+                        }
+                    return {"accepted": False, "reason": "starting-timeout", "stores": stores or []}
                 return {
                     "accepted": True,
                     "runId": run_id,

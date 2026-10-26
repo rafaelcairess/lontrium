@@ -1,3 +1,10 @@
+### Lontrium Control v1.7.2
+
+- Fixed scheduled runs at configured times incorrectly failing with a `409 Conflict` while the collection was actually starting.
+- Removed the duplicate resource check inside Docker for Windows-hosted schedules.
+- Added a local diagnostic log for launcher failures at `%LOCALAPPDATA%\Lontrium Control\scheduled-run.log`.
+- Improved the failure notification so it explains where to find the underlying error.
+
 ### Lontrium Control v1.7.1
 
 - Fixed Settings layout on narrow windows: long labels wrap and horizontal clipping is removed.

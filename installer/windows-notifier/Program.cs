@@ -197,7 +197,7 @@ namespace Lontrium.Notifier
                 else if (item.kind == "launcher_failure")
                 {
                     title = language == "pt" ? "Lontrium — não foi possível iniciar" : language == "es" ? "Lontrium — no se pudo iniciar" : "Lontrium — could not start";
-                    body = language == "pt" ? "A execução automática falhou antes de concluir. Abra o Lontrium para verificar." : language == "es" ? "La ejecución automática falló antes de finalizar. Abre Lontrium para comprobarlo." : "The automatic run failed before completion. Open Lontrium to investigate.";
+                    body = language == "pt" ? "O inicializador encontrou um erro. Abra o Lontrium novamente. Se persistir, consulte %LOCALAPPDATA%\\Lontrium Control\\scheduled-run.log." : language == "es" ? "El iniciador encontró un error. Abre Lontrium de nuevo. Si persiste, consulta %LOCALAPPDATA%\\Lontrium Control\\scheduled-run.log." : "The launcher encountered an error. Open Lontrium again. If it persists, see %LOCALAPPDATA%\\Lontrium Control\\scheduled-run.log.";
                 }
                 else if (item.kind == "resource_deferred")
                 {

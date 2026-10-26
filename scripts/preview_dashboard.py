@@ -116,7 +116,7 @@ async def main() -> None:
             "values": values,
             "configured": {spec.key: False for spec in SPECS if spec.secret},
             "setup": {"required": True, "complete": False},
-            "version": "1.7.1",
+            "version": "1.7.2",
         }
 
     async def history(_limit: int, _run_id: str | None) -> dict:
