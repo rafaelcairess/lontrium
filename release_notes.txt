@@ -1,3 +1,10 @@
+### Lontrium Control v1.7.3
+
+- Docker Desktop now stays in the background when Lontrium needs to start it.
+- The launcher hides every Docker Desktop window, including delayed windows that never become the active window.
+- Manual opens and scheduled runs use the same detached startup path.
+- Docker remains untouched when it was already running before Lontrium.
+
 ### Lontrium Control v1.7.2
 
 - Fixed scheduled runs at configured times incorrectly failing with a `409 Conflict` while the collection was actually starting.

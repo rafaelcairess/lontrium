@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.7.3] - 2026-10-26
+
+### Fixed
+- Docker Desktop now starts through the detached CLI for both scheduled and interactive Lontrium launches.
+- The Windows focus guard enumerates and hides every visible Docker Desktop window, including windows that appear without taking focus or appear late during startup.
+- Lontrium does not hide Docker Desktop when the engine was already running before Lontrium started.
+
 ## [1.7.2] - 2026-10-26
 
 ### Fixed

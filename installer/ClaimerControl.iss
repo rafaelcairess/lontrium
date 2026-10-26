@@ -1,5 +1,5 @@
 #define MyAppName "Lontrium Control"
-#define MyAppVersion "1.7.2"
+#define MyAppVersion "1.7.3"
 #define MyImageTag "latest"
 #define MyAppPublisher "Rafael Caires"
 #define MyAppURL "https://github.com/rafaelcairess/lontrium"

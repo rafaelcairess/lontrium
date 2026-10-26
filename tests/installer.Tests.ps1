@@ -229,6 +229,23 @@ Describe "Silent Docker Desktop startup" {
         Assert-MockCalled Start-DockerDesktopDetached -Times 1 -Exactly -Scope It
         Assert-MockCalled Start-Process -Times 0 -Exactly -Scope It
     }
+
+    It "hides Docker Desktop during an interactive Lontrium start too" {
+        Wait-DockerDesktop -Silent $false
+
+        Assert-MockCalled Start-UnattendedFocusGuard -Times 1 -Exactly -Scope It
+        Assert-MockCalled Start-DockerDesktopDetached -Times 1 -Exactly -Scope It
+        Assert-MockCalled Start-Process -Times 0 -Exactly -Scope It
+    }
+
+    It "does not hide a Docker Desktop session that was already running" {
+        Mock Test-DockerReady { $true }
+
+        Wait-DockerDesktop -Silent $true
+
+        Assert-MockCalled Start-UnattendedFocusGuard -Times 0 -Exactly -Scope It
+        Assert-MockCalled Start-DockerDesktopDetached -Times 0 -Exactly -Scope It
+    }
 }
 
 Describe "Application identity" {
@@ -292,6 +309,16 @@ Describe "Application identity" {
         }
         if ($notifier -notmatch 'lontrium-action://skip/' -or $notifier -notmatch 'Tag\s*=') {
             throw "Actionable replacement notifications are missing"
+        }
+    }
+
+    It "enumerates every visible Docker Desktop window instead of checking only the foreground window" {
+        $launcher = Get-Content -LiteralPath "$PSScriptRoot/../installer/Start-ClaimerControl.ps1" -Raw
+        if ($launcher -notmatch 'EnumWindows' -or $launcher -notmatch 'HideDockerDesktopWindows') {
+            throw "Docker Desktop windows are not comprehensively hidden"
+        }
+        if ($launcher -notmatch 'ProcessName\.StartsWith\("Docker Desktop"') {
+            throw "Docker Desktop process windows are not identified safely"
         }
     }
 

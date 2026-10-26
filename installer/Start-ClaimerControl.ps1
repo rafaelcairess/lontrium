@@ -294,11 +294,20 @@ function Start-UnattendedFocusGuard {
         $Script:UnattendedFocusGuard = Start-Job -ScriptBlock {
             Add-Type -TypeDefinition @"
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 public static class LontriumFocusGuard {
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
@@ -308,6 +317,23 @@ public static class LontriumFocusGuard {
 
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    public static void HideDockerDesktopWindows() {
+        EnumWindows(delegate (IntPtr hWnd, IntPtr lParam) {
+            if (!IsWindowVisible(hWnd)) return true;
+            uint processId;
+            GetWindowThreadProcessId(hWnd, out processId);
+            if (processId == 0) return true;
+            try {
+                using (Process process = Process.GetProcessById((int)processId)) {
+                    if (process.ProcessName.StartsWith("Docker Desktop", StringComparison.OrdinalIgnoreCase)) {
+                        ShowWindowAsync(hWnd, 0);
+                    }
+                }
+            } catch { }
+            return true;
+        }, IntPtr.Zero);
+    }
 }
 "@
             $lastForeground = [LontriumFocusGuard]::GetForegroundWindow()
@@ -328,11 +354,16 @@ public static class LontriumFocusGuard {
                 }
 
                 if ($dockerIsForeground) {
-                    [void][LontriumFocusGuard]::ShowWindowAsync($foreground, 0)
+                    [LontriumFocusGuard]::HideDockerDesktopWindows()
                     if ($lastForeground -ne [IntPtr]::Zero) {
                         [void][LontriumFocusGuard]::SetForegroundWindow($lastForeground)
                     }
-                } elseif ($foreground -ne [IntPtr]::Zero) {
+                } else {
+                    # Docker can create a visible window without taking focus.
+                    # Enumerate and hide every Docker Desktop top-level window.
+                    [LontriumFocusGuard]::HideDockerDesktopWindows()
+                }
+                if (-not $dockerIsForeground -and $foreground -ne [IntPtr]::Zero) {
                     $lastForeground = $foreground
                 }
                 Start-Sleep -Milliseconds 50
@@ -364,16 +395,14 @@ function Start-DockerDesktopDetached {
 }
 
 function Wait-DockerDesktop([bool]$Silent = $false) {
-    if ($Silent) { Start-UnattendedFocusGuard }
     if (Test-DockerReady) { return }
+    # Docker is an implementation detail of Lontrium. Hide its dashboard for
+    # both automatic and user-initiated starts while keeping the engine alive.
+    Start-UnattendedFocusGuard
     Write-Step $Script:Text.StartingDocker
     $desktop = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
     if (-not (Test-Path -LiteralPath $desktop)) { throw "Docker Desktop executable not found" }
-    if ($Silent) {
-        if (-not (Start-DockerDesktopDetached)) {
-            Start-Process -FilePath $desktop -WindowStyle Hidden | Out-Null
-        }
-    } else {
+    if (-not (Start-DockerDesktopDetached)) {
         Start-Process -FilePath $desktop -WindowStyle Hidden | Out-Null
     }
     Write-Step $Script:Text.WaitingDocker

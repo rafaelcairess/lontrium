@@ -238,7 +238,7 @@ def test_secret_values_are_never_returned(monkeypatch):
     assert "AE_PASSWORD" not in payload["values"]
     assert payload["configured"]["AE_EMAIL"] is True
     assert payload["configured"]["AE_PASSWORD"] is True
-    assert payload["version"] == "1.7.2"
+    assert payload["version"] == "1.7.3"
     assert "private@example.invalid" not in json.dumps(payload)
     assert "do-not-return" not in json.dumps(payload)
 
