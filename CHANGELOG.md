@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.7.4] - 2026-11-04
+
+### Fixed
+- AliExpress password-only login now focuses the password field so Chrome can restore a browser-saved password, even when no credentials are stored in Lontrium.
+- AliExpress recognizes the Portuguese **Entrar** and **Continuar** actions and waits for confirmed authentication after submitting the remembered password.
+- **Cancel run** now stops active and queued store work without terminating the Lontrium dashboard or Docker host underneath the open page.
+
+### Changed
+- The former **Stop all** action is now labelled **Cancel run** and clearly states that the dashboard remains open.
+
 ## [1.7.3] - 2026-10-26
 
 ### Fixed

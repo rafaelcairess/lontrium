@@ -238,7 +238,7 @@ def test_secret_values_are_never_returned(monkeypatch):
     assert "AE_PASSWORD" not in payload["values"]
     assert payload["configured"]["AE_EMAIL"] is True
     assert payload["configured"]["AE_PASSWORD"] is True
-    assert payload["version"] == "1.7.3"
+    assert payload["version"] == "1.7.4"
     assert "private@example.invalid" not in json.dumps(payload)
     assert "do-not-return" not in json.dumps(payload)
 
@@ -418,6 +418,18 @@ def test_cancel_run_while_idle_does_not_create_a_fake_last_run():
 
     assert payload["running"] is False
     assert payload["finishedAt"] is None
+
+
+def test_dashboard_cancel_keeps_lontrium_running():
+    source = (Path(__file__).resolve().parent.parent / "main.py").read_text(encoding="utf-8")
+    block = source.split("async def dashboard_stop():", 1)[1].split(
+        "async def dashboard_activity()", 1
+    )[0]
+
+    assert "asyncio.gather" in block
+    assert 'request_manual_action("stop_all"' not in block
+    assert "os._exit" not in block
+    assert '"hostShutdownRequested": False' in block
 
 
 def test_stop_event_is_available_when_optional_windows_notifications_are_disabled():

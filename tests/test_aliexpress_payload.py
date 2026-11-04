@@ -420,6 +420,47 @@ class TestLoginState:
     def test_remembered_login_values_are_not_overwritten(self, current, expected, should_fill):
         assert should_fill_login_field(current, expected) is should_fill
 
+    def test_password_only_screen_activates_browser_autofill_and_portuguese_submit(self):
+        class PasswordElement:
+            def __init__(self):
+                self.value = ""
+                self.clicks = 0
+                self.keys = []
+
+            async def click(self):
+                self.clicks += 1
+                # Matches Chrome's behavior in the reported AliExpress screen:
+                # the stored password appears only after the field receives focus.
+                self.value = "browser-saved-password"
+
+            async def send_keys(self, value):
+                self.keys.append(value)
+
+        element = PasswordElement()
+        clicked_labels = []
+        claimer = AliExpressClaimer()
+
+        async def no_sleep(_seconds):
+            return None
+
+        async def visible_value(_kind):
+            return element.value
+
+        async def click_button(labels):
+            clicked_labels.extend(labels)
+            return True
+
+        claimer.sleep = no_sleep
+        claimer._visible_login_value = visible_value
+        claimer._click_button_by_text = click_button
+
+        submitted = asyncio.run(claimer._complete_password_step(element, None))
+
+        assert submitted is True
+        assert element.clicks == 1
+        assert element.keys == ["\r"]
+        assert "Entrar" in clicked_labels
+
     def test_coin_init_reports_authenticated_session(self):
         payload = {
             "data": {"groupResponse": {"alreadyLogin": True, "guest": False}},

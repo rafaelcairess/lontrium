@@ -4,10 +4,10 @@
   "nav": {"browser": "Browser", "settings": "Settings", "language": "Language"},
   "dashboard": {
     "automation": "Automation", "automationCopy": "Run enabled stores or follow the next scheduled cycle.",
-    "nextRun": "Next run", "lastRun": "Last run", "activeStores": "Active stores", "runNow": "Run now", "stopAll": "Stop all",
+    "nextRun": "Next run", "lastRun": "Last run", "activeStores": "Active stores", "runNow": "Run now", "stopAll": "Cancel run",
     "storesTitle": "Active stores", "storesCopy": "Only selected stores participate in automatic runs.", "refresh": "Refresh",
     "securityLabel": "Privacy and local execution", "lastExecution": "Last run", "sessionNever": "No saved runs yet",
-    "manualOnly": "Manual only", "ready": "Ready", "running": "Running", "stopConfirm": "Cancel every current and queued store, close Lontrium and, on Windows, stop Docker when no other containers are using it?", "stopRequested": "Stopping all Lontrium activity…"
+    "manualOnly": "Manual only", "ready": "Ready", "running": "Running", "stopConfirm": "Cancel every current and queued store? The Lontrium dashboard will remain open.", "stopRequested": "Cancelling Lontrium runs…"
   },
   "history": {"title": "Recent activity", "copy": "Saved locally for 90 days, without account data or raw logs.", "empty": "Completed runs will appear here.", "seeMore": "See more ({count})"},
   "security": {

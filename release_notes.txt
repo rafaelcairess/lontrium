@@ -1,3 +1,9 @@
+### Lontrium Control v1.7.4
+
+- Fixed intermittent AliExpress login failures when the account is remembered and Chrome fills the password only after the field receives focus.
+- Added support for the Portuguese **Entrar** and **Continuar** buttons in the AliExpress login flow.
+- Changed **Stop all** to **Cancel run**: it cancels active/queued stores while keeping the Lontrium dashboard available.
+
 ### Lontrium Control v1.7.3
 
 - Docker Desktop now stays in the background when Lontrium needs to start it.

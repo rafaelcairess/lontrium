@@ -1242,6 +1242,72 @@ class AliExpressClaimer(BaseClaimer):
             self.logger.debug("Button-by-text click failed: %s", e)
         return False
 
+    async def _find_password_input(self):
+        """Return the visible password field used by either AliExpress login step."""
+        selectors = [
+            '#fm-login-password',
+            'input[type="password"]',
+            'input[label="Password"]',
+            'input[placeholder*="Password" i]',
+            'input[placeholder*="Senha" i]',
+            'input[name*="password" i]',
+        ]
+        for selector in selectors:
+            try:
+                element = await self.page.select(selector, timeout=1.5)
+                if element:
+                    return element
+            except Exception:
+                pass
+        return None
+
+    async def _complete_password_step(self, pass_el, fallback_password: str | None = None) -> bool:
+        """Activate and submit a password step, including browser autofill.
+
+        Chrome can keep a remembered password dormant until the input receives a
+        trusted click. Focusing it first lets the browser restore that value even
+        when Lontrium does not have a saved password.
+        """
+        try:
+            await pass_el.click()
+        except Exception as exc:
+            self.logger.debug("Could not focus AliExpress password input: %s", exc)
+
+        current_password = ""
+        for _ in range(5):
+            await self.sleep(0.4)
+            current_password = await self._visible_login_value("password")
+            if current_password:
+                self.logger.debug("AliExpress password became available after focusing the field.")
+                break
+
+        if should_fill_login_field(current_password, fallback_password):
+            self.logger.debug("Password input is empty. Entering the configured password...")
+            try:
+                await pass_el.send_keys(fallback_password)
+            except Exception as exc:
+                self.logger.debug("Could not fill AliExpress password input: %s", exc)
+                return False
+            await self.sleep(0.5)
+            current_password = await self._visible_login_value("password") or str(fallback_password or "")
+
+        if not current_password:
+            self.logger.debug("Password is still empty after focus; waiting for manual login.")
+            return False
+
+        self.logger.debug("Submitting the AliExpress password form...")
+        try:
+            await pass_el.send_keys("\r")
+        except Exception:
+            pass
+        await self.sleep(1.5)
+        await self._click_button_by_text([
+            "Entrar", "Sign in", "Sign In", "Log in", "Login",
+            "Iniciar sesión", "Iniciar sessao", "Acceder",
+            "Zaloguj", "Zaloguj się", "Anmelden", "Se connecter",
+        ])
+        return True
+
     async def _dump_login_state(self) -> None:
         """Log the login page's visible inputs/buttons (and save HTML) when
         automated login stalls, so the real DOM can be diagnosed instead of
@@ -1318,8 +1384,22 @@ class AliExpressClaimer(BaseClaimer):
         except Exception:
             pass
 
-        # 2. Automated login if credentials are configured
-        if cfg.ae_email and cfg.ae_password:
+        # 2. AliExpress may remember the account and show only its password
+        # step. Focus it even without Lontrium credentials so Chrome can restore
+        # a password that is saved in the browser profile.
+        remembered_pass = await self._find_password_input()
+        if remembered_pass:
+            self.logger.info("AliExpress remembered the account; activating the password step...")
+            if await self._complete_password_step(remembered_pass, cfg.ae_password):
+                for _ in range(20):
+                    if await self._login_ok():
+                        self.log_signed_in(cfg.ae_email or "AliExpress User")
+                        return True
+                    await self.sleep(1)
+
+        # Fresh login screen: use optional credentials only when both fields are
+        # configured. Existing browser values are never overwritten.
+        if not remembered_pass and cfg.ae_email and cfg.ae_password:
             self.logger.info("Attempting automated AliExpress login...")
             try:
                 # First check if a password field is already present (AliExpress remembered the account!)
@@ -1351,62 +1431,28 @@ class AliExpressClaimer(BaseClaimer):
                         except Exception:
                             pass
                         await self.sleep(2)
-                        if not await self._click_button_by_text(["Continue", "Kontynuuj", "Next", "Dalej", "Weiter"]):
+                        if not await self._click_button_by_text(
+                            ["Continue", "Continuar", "Kontynuuj", "Next", "Dalej", "Weiter"]
+                        ):
                             cont_btn = await self.page.find("Continue", timeout=2)
+                            if not cont_btn:
+                                cont_btn = await self.page.find("Continuar", timeout=2)
                             if not cont_btn:
                                 cont_btn = await self.page.find("Kontynuuj", timeout=2)
                             if cont_btn:
                                 await cont_btn.click()
                         await self.sleep(4)
 
-                    # Now look for password input after Continue
-                    for psel in ['#fm-login-password', 'input[type="password"]', 'input[label="Password"]', 'input[placeholder*="Password"]', 'input[name*="password"]']:
-                        try:
-                            pass_el = await self.page.select(psel, timeout=2)
-                            if pass_el:
-                                break
-                        except Exception:
-                            pass
-                else:
-                    self.logger.debug("ℹ️ AliExpress remembered account! (Password input available directly without entering email)")
+                    # Now look for the password input after Continue.
+                    pass_el = await self._find_password_input()
 
-                if pass_el:
-                    current_password = await self._visible_login_value("password")
-                    if should_fill_login_field(current_password, cfg.ae_password):
-                        self.logger.debug("Password input is empty. Entering the configured password...")
-                        await pass_el.click()
-                        await self.sleep(0.5)
-                        await pass_el.send_keys(cfg.ae_password)
-                    else:
-                        self.logger.debug("AliExpress password field is already filled; keeping the browser value.")
-                    await self.sleep(0.8)
-
-                    # Submit password via Enter + a trusted click on the real button (same fix as the email step).
-                    self.logger.debug("Submitting password (Enter + Sign-in button)...")
-                    try:
-                        await pass_el.send_keys("\r")
-                    except Exception:
-                        pass
-                    await self.sleep(2)
-                    if not await self._click_button_by_text(
-                        ["Sign in", "Sign In", "Zaloguj", "Zaloguj się", "Log in", "Anmelden"]
-                    ):
-                        sign_btn = None
-                        for label in ("Sign in", "Zaloguj", "Log in"):
-                            try:
-                                sign_btn = await self.page.find(label, timeout=2)
-                            except Exception:
-                                sign_btn = None
-                            if sign_btn:
-                                await sign_btn.click()
-                                break
-                    # The redirect and the post-login coin API can take several
-                    # seconds. Do not classify a password-only screen as a
-                    # failure before a real session signal appears.
+                if pass_el and await self._complete_password_step(pass_el, cfg.ae_password):
                     for _ in range(20):
                         if await self._login_ok():
-                            break
+                            self.log_signed_in(cfg.ae_email or "AliExpress User")
+                            return True
                         await self.sleep(1)
+
             except Exception as e:
                 self.logger.debug("Automated login steps encountered an exception: %s", e)
 

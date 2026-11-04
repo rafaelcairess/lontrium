@@ -928,20 +928,17 @@ async def main() -> None:
             ]
             for task in tasks:
                 task.cancel()
+            if tasks:
+                # Give each claimer a chance to close its browser and release
+                # locks before the dashboard reports cancellation as complete.
+                await asyncio.gather(*tasks, return_exceptions=True)
             records = dashboard_state.cancel_run()
             for record in records:
                 await _persist_dashboard_result(record)
-            event_id = dashboard_state.request_manual_action("stop_all", "system")
-
-            async def _fallback_exit():
-                await asyncio.sleep(10)
-                os._exit(0)
-
-            asyncio.create_task(_fallback_exit())
             return {
                 "accepted": True,
                 "cancelledTasks": len(tasks),
-                "hostShutdownRequested": bool(event_id),
+                "hostShutdownRequested": False,
             }
 
         async def dashboard_activity() -> dict:
