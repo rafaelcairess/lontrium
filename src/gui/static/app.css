@@ -552,6 +552,86 @@ h1, h2, h3, .brand-name, .store-name {
 .setup-review dd { margin: 0; color: var(--text); font-size: 11px; line-height: 1.5; }
 
 .see-more-history { margin-top: 10px; width: 100%; justify-content: center; }
+
+.redemptions-section { margin-top: 40px; }
+.redemption-list { display: grid; gap: 8px; }
+.redemption-card {
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: var(--window);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.redemption-card > div { min-width: 0; display: grid; gap: 4px; }
+.redemption-card strong { overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
+.redemption-card > div span { color: var(--muted); font-size: 10px; }
+.redemption-state, .release-category, .release-installed {
+  width: max-content;
+  padding: 4px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--view);
+  font-size: 9px;
+  line-height: 1;
+}
+.state-redeemed { color: var(--success); border-color: rgba(110, 225, 182, .3); }
+.state-failed { color: var(--danger); border-color: rgba(251, 124, 124, .3); }
+.state-pending, .state-retry { color: #e0aa4e; border-color: rgba(224, 170, 78, .3); }
+.button.compact { min-height: 31px; padding: 0 10px; font-size: 10px; }
+
+.release-history { margin-top: 34px; padding-top: 28px; border-top: 1px solid var(--line); }
+.release-history-heading { margin-bottom: 16px; }
+.release-history-heading h4 { margin: 0; color: var(--text-soft); font-family: "Newsreader", Georgia, serif; font-size: 22px; font-weight: 600; }
+.release-history-heading p { margin: 6px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.release-card { margin-top: 8px; overflow: hidden; background: var(--view); border: 1px solid var(--line); border-radius: 10px; }
+.release-card.current { border-color: rgba(189, 230, 251, .38); box-shadow: inset 3px 0 0 var(--accent); }
+.release-card summary { min-height: 52px; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; cursor: pointer; }
+.release-card summary strong { display: inline-flex; align-items: center; gap: 8px; color: var(--text); }
+.release-card summary time { color: var(--muted); font-size: 10px; }
+.release-installed { color: var(--accent); background: var(--accent-soft); }
+.release-card ul { margin: 0; padding: 4px 16px 14px; display: grid; gap: 9px; list-style: none; }
+.release-card li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 9px; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.release-category { margin-top: 1px; }
+.category-added { color: var(--success); border-color: rgba(110, 225, 182, .28); }
+.category-improved { color: var(--accent); border-color: rgba(189, 230, 251, .28); }
+.category-fixed { color: #e0aa4e; border-color: rgba(224, 170, 78, .28); }
+.category-security { color: #c2a4ff; border-color: rgba(194, 164, 255, .28); }
+.release-card > a { display: inline-block; margin: 0 16px 15px; color: var(--accent); font-size: 10px; text-decoration: none; }
+.release-card > a:hover { text-decoration: underline; }
+
+.release-notice {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  background: rgba(7, 10, 11, .82);
+  backdrop-filter: blur(5px);
+}
+.release-notice-card {
+  position: relative;
+  width: min(620px, 100%);
+  padding: 32px;
+  background: var(--window);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .48);
+}
+.release-notice-close { position: absolute; top: 14px; right: 14px; }
+.release-notice-eyebrow { color: var(--accent); font-size: 9px; font-weight: 700; letter-spacing: .14em; }
+.release-notice-card h2 { margin: 10px 42px 4px 0; color: var(--text-soft); font-size: 30px; font-weight: 600; }
+.release-notice-card > p { margin: 0 0 22px; color: var(--muted); font-size: 11px; }
+.release-notice-items { display: grid; gap: 8px; }
+.release-notice-item { padding: 12px 13px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 10px; background: var(--view); border: 1px solid var(--line); border-radius: 9px; }
+.release-notice-item p { margin: 0; color: var(--text); font-size: 11px; line-height: 1.55; }
+.release-notice-actions { margin-top: 24px; display: flex; justify-content: flex-end; gap: 9px; }
 .schedule-times-field { display: flex; flex-direction: column; gap: 8px; grid-column: 1 / -1; }
 .schedule-times-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .schedule-time-row { display: flex; gap: 8px; align-items: center; flex: 0 0 160px; }
@@ -623,4 +703,10 @@ h1, h2, h3, .brand-name, .store-name {
   .language-cards, .setup-store-picker, .store-catalog, .help-grid { grid-template-columns: 1fr; }
   .setup-review div { grid-template-columns: 1fr; gap: 5px; }
   .help-tooltip { position: fixed; left: 18px; right: 18px; top: auto; bottom: 90px; width: auto; }
+  .redemption-card { grid-template-columns: minmax(0, 1fr) auto; }
+  .redemption-card .button { grid-column: 1 / -1; justify-self: start; }
+  .release-notice { padding: 12px; }
+  .release-notice-card { padding: 26px 20px 20px; }
+  .release-notice-card h2 { font-size: 25px; }
+  .release-notice-actions { align-items: stretch; flex-direction: column-reverse; }
 }

@@ -1,3 +1,13 @@
+### Lontrium Control v1.8.0
+
+- Added optional Microsoft Store/Xbox and Legacy Games support, including eligible Prime Gaming code redemption.
+- Added a private game-code status panel, one-time update notice and a permanent offline release history in Help.
+- Added central log redaction for credentials, accounts, tokens, private URL data, tracebacks and game codes.
+- Capped Chrome cache at 250 MB and now requests a clean browser shutdown before terminating residual processes.
+- Expanded AliExpress check-in recognition to 18 languages and added calendar confirmation.
+- Added current and legacy Epic checkout-frame support and strict zero-total guards for Fab and Fanatical.
+- Existing store selection, sessions, database, credentials and Windows schedule are preserved during update.
+
 ### Lontrium Control v1.7.4
 
 - Fixed intermittent AliExpress login failures when the account is remembered and Chrome fills the password only after the field receives focus.

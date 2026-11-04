@@ -6,8 +6,8 @@
 
 ### Jogos grátis, recompensas diárias e ofertas digitais em um único painel local.
 
-O Lontrium automatiza tarefas repetitivas em lojas oficiais, preserva as sessões no seu computador
-e sabe esperar quando você está jogando ou usando um aplicativo pesado.
+O Lontrium automatiza tarefas repetitivas em lojas oficiais, acompanha códigos do Prime Gaming,
+preserva as sessões no seu computador e sabe esperar quando você está jogando ou usando um aplicativo pesado.
 
 <p>
   <a href="https://github.com/rafaelcairess/lontrium/releases/latest"><img alt="Última versão" src="https://img.shields.io/github/v/release/rafaelcairess/lontrium?style=for-the-badge&label=VERSÃO"></a>
@@ -76,11 +76,11 @@ O **Lontrium Control** reúne essa rotina em uma interface única. Ele executa s
 
 | Categoria | Módulos | Autenticação |
 | --- | --- | --- |
-| Jogos e ativos | Epic Games, GOG, Prime Gaming, Steam, Ubisoft, Fab e Unity | Sessão do navegador ou preenchimento opcional, conforme a loja |
+| Jogos e ativos | Epic Games, GOG, Prime Gaming, Steam, Microsoft/Xbox, Legacy Games, Ubisoft, Fab e Unity | Sessão do navegador ou preenchimento opcional, conforme a loja |
 | Recompensas diárias | AliExpress e Shopee | AliExpress aceita preenchimento opcional; Shopee usa login manual |
 | Descoberta de ofertas | GamerPower, Fanatical, itch.io e IndieGala | Depende da loja de destino |
 
-O Fab reutiliza a sessão da Epic Games. O Lontrium não tenta contornar CAPTCHA, antifraude, login social ou confirmação por código.
+Microsoft/Xbox e Legacy Games são opcionais e começam desativados. O Fab reutiliza a sessão da Epic Games. O Lontrium não tenta contornar CAPTCHA, antifraude, login social ou confirmação por código.
 
 ## Comece em três passos
 
@@ -114,6 +114,16 @@ O instalador cria o atalho do Lontrium e prepara a execução local. Se o Docker
     <td width="50%" valign="top">
       <img src="docs/images/06-notifications.png" alt="Notificações do Lontrium" width="100%">
       <p align="center"><strong>Alertas e integrações</strong></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/09-release-history.png" alt="Histórico de versões do Lontrium" width="100%">
+      <p align="center"><strong>Histórico local de versões</strong></p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/10-game-codes.png" alt="Acompanhamento seguro de códigos de jogos" width="100%">
+      <p align="center"><strong>Códigos e ações pendentes</strong></p>
     </td>
   </tr>
 </table>
@@ -153,6 +163,8 @@ Agendador do Windows
 - O painel responde apenas em `127.0.0.1`.
 - Sessões e credenciais opcionais ficam no volume local do Docker.
 - Valores secretos nunca são devolvidos ao frontend; ele recebe somente o estado “configurado”.
+- Logs ocultam credenciais, contas, webhooks, tokens, URLs privadas e códigos de jogos antes de serem gravados ou exibidos.
+- O painel de códigos mostra apenas metadados seguros e mantém os códigos completos somente no armazenamento local e nas notificações privadas configuradas pelo usuário.
 - Não há servidor de contas ou telemetria operado pelo projeto.
 - Atualizações são verificadas nas releases oficiais deste repositório.
 

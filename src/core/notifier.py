@@ -15,8 +15,8 @@ import asyncio
 import logging
 from pathlib import Path
 
-import httpx
 import apprise
+import httpx
 
 from src.core.config import cfg
 
@@ -109,7 +109,10 @@ async def notify(
         logger.debug("No notification service configured.")
         return
 
-    logger.debug("Dispatching notification to %d service(s): %s", len(tasks), message[:200])
+    # The body can contain private redemption codes. Keep those in the user's
+    # configured notification only, never in the diagnostic log.
+    logger.debug("Dispatching notification to %d service(s): %s (%d chars)",
+                 len(tasks), message.split("\n", 1)[0][:120], len(message))
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for result in results:
         if isinstance(result, Exception):

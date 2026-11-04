@@ -13,7 +13,6 @@ import random
 import re
 
 import nodriver as uc
-
 from browserforge.fingerprints import FingerprintGenerator
 from browserforge.injectors.utils import InjectFunction
 
@@ -33,6 +32,33 @@ def should_fill_login_field(current_value: str | None, expected_value: str | Non
 
 # Coin balance comes from this mtop API (the DOM shows only animated digits).
 COIN_API_PREFIX = "https://acs.aliexpress.com/h5/mtop.aliexpress.coin.execute/"
+
+# AliExpress ships the coin page in 18 languages. These labels come from its
+# own locale packs and are intentionally limited to check-in actions so coupon
+# and promotion buttons are not mistaken for the daily collection control.
+CHECKIN_LABELS = [
+    "collect", "einsammeln", "sammeln", "collecter", "recevoir", "canjear", "obtener",
+    "ritira", "raccogli", "krijgen", "ontvangen", "resgatar", "coletar", "odbierz",
+    "получить", "отримати", "al", "topla", "受け取る", "獲得する", "받기", "اجمع",
+    "تحصيل", "לאיסוף", "לאסוף", "รับ", "เก็บ", "nhận ngay", "thu thập", "ambil",
+]
+EARN_MORE_LABELS = [
+    "earn more coins", "get more coins", "mehr münzen verdienen", "gagner plus de pièces",
+    "gana más monedas", "guadagna più monete", "verdien meer munten", "ganhe mais moedas",
+    "zdobądź więcej", "заработать еще монеты", "заробити більше монет",
+    "daha fazla jeton kazanın", "もっとコインを獲得する", "코인 더 받기",
+    "اكسب المزيد من العملات", "הרוויחו עוד מטבעות", "รับเหรียญเพิ่มเติม",
+    "kiếm thêm xu", "dapatkan lebih banyak koin",
+]
+TODAY_LABELS = [
+    "today", "heute", "aujourd'hui", "hoy", "oggi", "vandaag", "hoje", "dziś",
+    "dzisiaj", "сегодня", "сьогодні", "bugün", "本日", "오늘", "اليوم", "היום",
+    "วันนี้", "hôm nay",
+]
+CHECKIN_BUTTON_CSS = (
+    '#signButton, [class*="aecoin-signButton-"], [class*="aecoin-checkInButton-"], '
+    '[class*="aecoin-CheckInButton-"]'
+)
 
 # In-page fetch/XHR interceptor stashing coin/check-in mtop responses in window.__fgcCoin (CDP handlers don't fire here).
 _COIN_CAPTURE_JS = r"""
@@ -1576,10 +1602,11 @@ class AliExpressClaimer(BaseClaimer):
                     const els = [...document.querySelectorAll('button, div[role="button"], span, a, div')];
                     // Match only real check-in button labels like "Collect", "Collect 70",
                     // "Odbierz monety" – NOT promo texts like "Odbierz kupon 5$".
-                    const collectRe = /^(collect|odbierz|claim|check[- ]?in|zamelduj si[eę])(\s+\+?\d+)?(\s+(coins?|monet\w*))?$/i;
+                    const collectRe = /^(collect|odbierz|raccogli|claim|check[- ]?in|zamelduj si[eę])(\s+\+?\d+)?(\s+(coins?|monet\w*))?$/i;
                     const earnRe = /^(earn more coins|zdob[aą]d[źz] wi[eę]cej)/i;
-
-                    const ptCollectRe = /^coletar(\s+\+?\d+)?(\s+moedas?)?$/i;
+                    const collect = new Set(__COLLECT__);
+                    const earn = __EARN__;
+                    const today = new Set(__TODAY__);
                     let btnText = null;
                     let earnText = null;
                     let todayCoins = null;
@@ -1587,12 +1614,33 @@ class AliExpressClaimer(BaseClaimer):
                     for (const el of els) {
                         const t = (el.textContent || '').trim();
                         if (!t || t.length > 40 || !isVisible(el)) continue;
-                        if (btnText === null && (collectRe.test(t) || ptCollectRe.test(t))) {
+                        const low = t.toLowerCase();
+                        if (btnText === null && (collectRe.test(t) || collect.has(low.replace(/\s+\+?\d+$/, '')))) {
                             btnText = t;
                             const m = t.match(/(\d+)/);
                             if (m) todayCoins = parseInt(m[1], 10);
                         }
-                        if (earnText === null && earnRe.test(t)) earnText = t;
+                        if (earnText === null && (earnRe.test(t) || earn.some(e => low.startsWith(e)))) earnText = t;
+                    }
+
+                    // The calendar itself confirms collection in every locale.
+                    const todayTile = document.querySelector('[class*="aecoin-today-checked-"], [class*="aecoin-today-unchecked-"]');
+                    const todayChecked = !!document.querySelector('[class*="aecoin-today-checked-"], [class*="aecoin-isTodayChecked-"]');
+                    if (todayCoins === null && todayTile) {
+                        const m = (todayTile.textContent || '').match(/(\d+)/);
+                        if (m) todayCoins = parseInt(m[1], 10);
+                    }
+
+                    // If a new translation is unknown, prefer AliExpress's own
+                    // check-in id/classes before broad text matching.
+                    if (btnText === null && earnText === null && !todayChecked) {
+                        const own = [...document.querySelectorAll(__BUTTON_CSS__)].find(el => isVisible(el) && !el.disabled
+                            && !/loading/i.test(String(el.className)) && (el.textContent || '').trim());
+                        if (own) {
+                            btnText = own.textContent.trim().replace(/\s+/g, ' ');
+                            const m = btnText.match(/(\d+)/);
+                            if (m) todayCoins = parseInt(m[1], 10);
+                        }
                     }
 
                     // Fallback: read today's amount from the check-in calendar chip
@@ -1601,7 +1649,7 @@ class AliExpressClaimer(BaseClaimer):
                         const todayRe = /^(today|dzi[śs]|dzisiaj)$/i;
                         for (const el of document.querySelectorAll('*')) {
                             const own = (el.childElementCount === 0 ? (el.textContent || '') : '').trim();
-                            if (!todayRe.test(own) || !isVisible(el)) continue;
+                            if (!(todayRe.test(own) || today.has(own.toLowerCase())) || !isVisible(el)) continue;
                             let node = el;
                             for (let up = 0; up < 3 && node.parentElement; up++) {
                                 node = node.parentElement;
@@ -1615,13 +1663,16 @@ class AliExpressClaimer(BaseClaimer):
                     // nodriver does not serialise JS objects into Python dicts,
                     // so return a JSON string and parse it on the Python side.
                     return JSON.stringify({
-                        claimed: btnText === null && earnText !== null,
+                        claimed: (btnText === null && earnText !== null) || todayChecked,
                         btnText: btnText,
                         earnText: earnText,
                         todayCoins: todayCoins
                     });
                 })()
-            """)
+            """.replace("__COLLECT__", json.dumps(CHECKIN_LABELS, ensure_ascii=False))
+                .replace("__EARN__", json.dumps(EARN_MORE_LABELS, ensure_ascii=False))
+                .replace("__TODAY__", json.dumps(TODAY_LABELS, ensure_ascii=False))
+                .replace("__BUTTON_CSS__", json.dumps(CHECKIN_BUTTON_CSS)))
             if isinstance(res, str):
                 parsed = json.loads(res)
                 if isinstance(parsed, dict):
@@ -1740,9 +1791,9 @@ class AliExpressClaimer(BaseClaimer):
                 " const visible = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);"
                 "   return r.width > 0 && r.height > 0 && s.display !== 'none'"
                 "     && s.visibility !== 'hidden' && s.opacity !== '0'; };"
-                " const els = [...document.querySelectorAll('button, div[role=\"button\"], span, a')];"
-                " for (const b of els) { if ((b.textContent||'').trim() === target && visible(b)) { b.click(); return true; } }"
-                " return false; })()" % json.dumps(btn_text)
+                " const els = [...document.querySelectorAll('button, div[role=\"button\"], span, a, ' + %s)];"
+                " for (const b of els) { if ((b.textContent||'').trim().replace(/\\s+/g, ' ') === target && visible(b)) { b.click(); return true; } }"
+                " return false; })()" % (json.dumps(btn_text), json.dumps(CHECKIN_BUTTON_CSS))
             )
             return bool(clicked)
         except Exception as e:

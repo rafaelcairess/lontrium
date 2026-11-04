@@ -11,6 +11,7 @@ let latestStatus = null;
 let latestHistory = [];
 let latestConfig = null;
 let latestUpdate = null;
+let latestReleases = null;
 let activeSettingsSection = 'section.help';
 let setupStep = 0;
 let setupValues = {};
@@ -42,7 +43,7 @@ function t(key, params = {}) {
 }
 
 function renderVersion(config = latestConfig) {
-  const version = config?.version || '1.7.4';
+  const version = config?.version || '1.8.0';
   const label = `v${version.replace(/^v/, '')}`;
   const header = document.querySelector('#appVersion');
   const settings = document.querySelector('#settingsVersion');
@@ -69,6 +70,7 @@ async function setLocale(locale, persist = true) {
   if (latestStatus) renderStatus(latestStatus);
   if (latestConfig && document.querySelector('#settingsDrawer').classList.contains('open')) renderSettings(latestConfig);
   if (!document.querySelector('#onboarding').hidden) renderOnboarding();
+  renderReleaseNotice();
   renderUpdate();
 }
 
@@ -326,6 +328,50 @@ function renderHistory(history) {
   }
 }
 
+function renderRedemptions(items) {
+  const section = document.querySelector('#redemptionsSection');
+  const container = document.querySelector('#redemptionList');
+  const rows = Array.isArray(items) ? items : [];
+  const primeEnabled = latestStatus?.stores?.some(store => store.key === 'prime' && store.enabled);
+  section.hidden = !primeEnabled && rows.length === 0;
+  if (section.hidden) return;
+  if (!rows.length) {
+    const empty = document.createElement('p');
+    empty.className = 'history-empty';
+    empty.textContent = t('redemptions.empty');
+    container.replaceChildren(empty);
+    return;
+  }
+  container.replaceChildren(...rows.map(item => {
+    const card = document.createElement('article');
+    card.className = 'redemption-card';
+    const copy = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = item.title;
+    const target = document.createElement('span');
+    target.textContent = item.targetName;
+    copy.append(title, target);
+    const state = document.createElement('span');
+    state.className = `redemption-state state-${item.state}`;
+    state.textContent = t(`redemptions.state.${item.state}`);
+    card.append(copy, state);
+    if (item.action === 'configure') {
+      const button = document.createElement('button');
+      button.className = 'button secondary compact';
+      button.type = 'button';
+      button.textContent = t('redemptions.configure');
+      button.addEventListener('click', async () => {
+        const selected = latestConfig?.values?.STORES?.includes(item.target);
+        if (!selected) return openStoreManager();
+        await openSettings();
+        activateSettingsSection(`section.${item.target}`);
+      });
+      card.append(button);
+    }
+    return card;
+  }));
+}
+
 function renderStatus(status) {
   latestStatus = status;
   const enabledStores = status.stores.filter(store => store.enabled);
@@ -346,7 +392,112 @@ function renderStatus(status) {
   document.querySelector('#runLabel').textContent = t(status.running ? 'dashboard.running' : 'dashboard.ready');
   document.querySelector('#runPill').classList.toggle('running', status.running);
   document.querySelector('#runAllButton').disabled = status.running || enabledStores.length === 0;
+  renderRedemptions(status.pendingRedemptions);
   renderHistory(latestHistory);
+}
+
+function releaseText(item) {
+  return item?.text?.[currentLocale] || item?.text?.en || '';
+}
+
+function createReleaseHistory() {
+  const wrapper = document.createElement('section');
+  wrapper.className = 'release-history';
+  wrapper.id = 'releaseHistory';
+  const heading = document.createElement('div');
+  heading.className = 'release-history-heading';
+  const title = document.createElement('h4');
+  title.textContent = t('releases.historyTitle');
+  const copy = document.createElement('p');
+  copy.textContent = t('releases.historyCopy');
+  heading.append(title, copy);
+  wrapper.append(heading);
+  for (const release of latestReleases?.releases || []) {
+    const card = document.createElement('details');
+    card.className = 'release-card';
+    if (release.version === latestReleases.currentVersion) {
+      card.classList.add('current');
+      card.open = true;
+    }
+    const summary = document.createElement('summary');
+    const version = document.createElement('strong');
+    version.textContent = `v${release.version}`;
+    if (release.version === latestReleases.currentVersion) {
+      const installed = document.createElement('span');
+      installed.className = 'release-installed';
+      installed.textContent = t('releases.installed');
+      version.append(installed);
+    }
+    const date = document.createElement('time');
+    date.dateTime = release.date;
+    date.textContent = new Intl.DateTimeFormat(currentLocale, {dateStyle: 'medium'}).format(new Date(`${release.date}T12:00:00`));
+    summary.append(version, date);
+    const list = document.createElement('ul');
+    for (const item of release.items || []) {
+      const row = document.createElement('li');
+      const badge = document.createElement('span');
+      badge.className = `release-category category-${item.category}`;
+      badge.textContent = t(`releases.category.${item.category}`);
+      const text = document.createElement('span');
+      text.textContent = releaseText(item);
+      row.append(badge, text);
+      list.append(row);
+    }
+    card.append(summary, list);
+    if (release.url) {
+      const link = document.createElement('a');
+      link.href = release.url;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.textContent = t('releases.github');
+      card.append(link);
+    }
+    wrapper.append(card);
+  }
+  return wrapper;
+}
+
+function renderReleaseNotice() {
+  const modal = document.querySelector('#releaseNotice');
+  if (!latestReleases?.showNotice || !latestConfig?.setup?.complete) {
+    modal.hidden = true;
+    return;
+  }
+  const release = (latestReleases.releases || []).find(item => item.version === latestReleases.currentVersion);
+  if (!release) return;
+  document.querySelector('#releaseNoticeTitle').textContent = t('releases.noticeTitle', {version: release.version});
+  const items = (release.items || []).slice(0, 4).map(item => {
+    const row = document.createElement('div');
+    row.className = 'release-notice-item';
+    const badge = document.createElement('span');
+    badge.className = `release-category category-${item.category}`;
+    badge.textContent = t(`releases.category.${item.category}`);
+    const text = document.createElement('p');
+    text.textContent = releaseText(item);
+    row.append(badge, text);
+    return row;
+  });
+  document.querySelector('#releaseNoticeItems').replaceChildren(...items);
+  modal.hidden = false;
+}
+
+async function acknowledgeRelease(openHistory = false) {
+  if (!latestReleases) return;
+  try {
+    await api('/api/releases/acknowledge', {
+      method: 'POST',
+      body: JSON.stringify({version: latestReleases.currentVersion}),
+    });
+    latestReleases.showNotice = false;
+    document.querySelector('#releaseNotice').hidden = true;
+    if (openHistory) {
+      await openSettings();
+      activateSettingsSection('section.help');
+      setTimeout(() => document.querySelector('#releaseHistory')?.scrollIntoView({behavior: 'smooth'}), 100);
+    }
+  } catch (error) {
+    showToast(error.message, true);
+  }
 }
 
 async function refreshStatus(silent = true) {
@@ -610,7 +761,7 @@ function helpSettingsBody() {
   copy.textContent = t('settings.helpCopy');
   const version = document.createElement('small');
   version.className = 'help-version';
-  version.textContent = `${t('settings.versionLabel')} ${latestConfig?.version || '1.7.4'}`;
+  version.textContent = `${t('settings.versionLabel')} ${latestConfig?.version || '1.8.0'}`;
   intro.append(title, copy, version);
   const cards = document.createElement('div');
   cards.className = 'help-grid';
@@ -637,6 +788,7 @@ function helpSettingsBody() {
   button.textContent = t('settings.openIntroduction');
   button.addEventListener('click', openOnboardingPreview);
   body.append(intro, cards, button);
+  if (latestReleases?.releases?.length) body.append(createReleaseHistory());
   return body;
 }
 
@@ -1122,14 +1274,16 @@ function launchUpdater() {
 
 async function initialise() {
   await setLocale(detectedLocale(), false);
-  const [status, history, config] = await Promise.all([
+  const [status, history, config, releases] = await Promise.all([
     api('/api/status'),
     api('/api/history?limit=250'),
     api('/api/config'),
+    api('/api/releases'),
   ]);
   latestStatus = status;
   latestHistory = history.history || [];
   latestConfig = config;
+  latestReleases = releases;
   renderVersion(latestConfig);
   setupValues = {...latestConfig.values, STORES: [...latestConfig.values.STORES]};
   setupScheduleMode = inferSetupScheduleMode();
@@ -1138,6 +1292,7 @@ async function initialise() {
     document.querySelector('#onboarding').hidden = false;
     renderOnboarding();
   }
+  renderReleaseNotice();
   checkUpdate();
 }
 
@@ -1168,6 +1323,9 @@ document.querySelector('#storeManagerForm').addEventListener('submit', saveStore
 document.querySelector('#setupBack').addEventListener('click', previousSetupStep);
 document.querySelector('#setupNext').addEventListener('click', nextSetupStep);
 document.querySelector('#setupExit').addEventListener('click', closeOnboardingPreview);
+document.querySelector('#releaseNoticeClose').addEventListener('click', () => acknowledgeRelease(false));
+document.querySelector('#releaseNoticeContinue').addEventListener('click', () => acknowledgeRelease(false));
+document.querySelector('#releaseNoticeHistory').addEventListener('click', () => acknowledgeRelease(true));
 
 let lastActivitySent = 0;
 function recordActivity() {

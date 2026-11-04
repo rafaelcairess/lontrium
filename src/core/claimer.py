@@ -24,15 +24,19 @@ import asyncio
 import logging
 import os
 import re
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
 import nodriver as uc
+import pyotp
 
 from src.core.config import cfg
-from src.core.privacy import mask_account
+from src.core.redact import hide_account, mask_account
 
 logger = logging.getLogger("fgc.claimer")
+
+# Two attempts cover a TOTP rollover without trapping a store in a login loop.
+OTP_KEY_ATTEMPTS = 2
 
 
 def now_str() -> str:
@@ -280,6 +284,7 @@ class BaseClaimer:
             "--lang=en-US",
             "--accept-lang=en-US,en",  # no q-values: Chrome copies this into navigator.languages
             "--disable-dev-shm-usage",     # Docker shared memory fix
+            "--disk-cache-size=262144000", # cap persistent profile cache at 250 MB
             "--disable-smooth-scrolling",  # CPU optimization
             "--disable-extensions",        # CPU optimization
             "--mute-audio",                # CPU optimization
@@ -363,7 +368,8 @@ class BaseClaimer:
         self.log_browser_ready()
         return self.browser
 
-    def _normalize_title(self, title: str) -> str:
+    @staticmethod
+    def _normalize_title(title: str) -> str:
         """Strip non-alphanumeric chars and lowercase for fuzzy matching."""
         return re.sub(r'[^a-z0-9]', '', str(title).lower())
 
@@ -375,6 +381,7 @@ class BaseClaimer:
         """Standardised log for successful login. The e-mail is masked, self.user keeps it whole."""
         user = username or self.user or "unknown"
         self.user = user
+        hide_account(user)
         self.logger.info("🔓 [bold green]Signed in as:[/bold green] %s", mask_account(user))
 
     async def close_browser(self) -> None:
@@ -383,6 +390,14 @@ class BaseClaimer:
             return
         pid = getattr(self.browser, "_process_pid", None) \
             or getattr(getattr(self.browser, "_process", None), "pid", None)
+        # Give Chrome one clean shutdown opportunity so cookies and session
+        # state reach disk before the process-tree fallback is used.
+        if self.page:
+            try:
+                await self.page.send(uc.cdp.browser.close())
+                await asyncio.sleep(1)
+            except Exception as e:
+                self.logger.debug("Chrome clean close raised (ignored): %s", e)
         try:
             self.browser.stop()
         except Exception as e:
@@ -585,6 +600,50 @@ class BaseClaimer:
             """))
         except Exception:
             return False
+
+    async def _page_brief(self) -> str:
+        """Return a query-free address and title suitable for diagnostics."""
+        try:
+            return str(await self.page.evaluate(
+                "location.origin + location.pathname + ' (' + document.title + ')'"
+            ))[:160]
+        except Exception as exc:
+            return f"unreadable page ({exc})"
+
+    async def _fresh_totp(self, secret: str, previous: str = "") -> str:
+        """Return a TOTP code, waiting for a new window after a rejection."""
+        totp = pyotp.TOTP("".join(str(secret or "").split()).upper())
+        code = totp.now()
+        waited = 0
+        while previous and code == previous and waited < 35:
+            await self.sleep(3)
+            waited += 3
+            code = totp.now()
+        return code
+
+    async def _remember_this_browser(self) -> bool:
+        """Tick a store's remember/trust-this-browser checkbox when present."""
+        try:
+            clicked = await self.page.evaluate(r"""
+                (() => {
+                    const boxes = [...document.querySelectorAll('input[type="checkbox"]')];
+                    const box = boxes.find(b => {
+                        const named = ((b.id || '') + ' ' + (b.name || '')).toLowerCase();
+                        const label = (b.closest('label')?.textContent
+                            || document.querySelector('label[for="' + b.id + '"]')?.textContent
+                            || b.parentElement?.textContent || '').toLowerCase();
+                        return /remember|trust/.test(named)
+                            || /require code|remember this|trust this/.test(label);
+                    });
+                    if (!box || box.checked) return false;
+                    box.click();
+                    return true;
+                })()
+            """)
+        except Exception as exc:
+            self.logger.debug("Could not tick remember-this-browser: %s", exc)
+            return False
+        return bool(clicked)
 
     async def _wait_out_challenge(self, label: str, settle: int = 12) -> bool:
         """Clear a human-check: let it auto-pass, else alert the user to solve via VNC.

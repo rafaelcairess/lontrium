@@ -1,5 +1,14 @@
 # Third-party notices
 
+## Free-Games-Claimer-Remaster
+
+Lontrium is an AGPL-3.0 derivative of
+[Free-Games-Claimer-Remaster](https://github.com/P-Adamiec/Free-Games-Claimer-Remaster).
+Lontrium v1.8.0 selectively adapts its Microsoft Store/Xbox, Legacy Games,
+Prime-code tracking and log-redaction work to Lontrium's local dashboard and
+Windows installer. Original copyright and contributor history remain available
+in the upstream repository and this repository's Git history.
+
 ## Simple Icons
 
 The local brand icons in `src/gui/static/icons/` are sourced from

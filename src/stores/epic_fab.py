@@ -17,6 +17,7 @@ from src.core.claimer import BaseClaimer
 from src.core.config import cfg
 from src.core.database import async_session, get_or_create
 from src.core.url_security import url_has_allowed_host
+from src.stores.epic import checkout_total_is_zero
 
 logger = logging.getLogger("fgc.fab")
 
@@ -42,7 +43,7 @@ function () {
     return JSON.stringify({
         buttons: [...this.querySelectorAll('button, a[role=button]')]
             .map(b => (b.innerText || '').trim()).filter(Boolean).slice(0, 10),
-        text: (this.body ? (this.body.innerText || '').replace(/\\s+/g, ' ') : '').slice(0, 260),
+        text: this.body ? (this.body.innerText || '').replace(/\\s+/g, ' ') : '',
     });
 }
 """
@@ -584,7 +585,12 @@ class FabClaimer(BaseClaimer):
             return
 
         await self.sleep(6)
-        if not await self._complete_checkout():
+        checkout = await self._complete_checkout(title)
+        if checkout == "not-free":
+            logger.warning("Epic's checkout wants money for '%s'; nothing was ordered.", title)
+            self.notify_games.append({"title": title, "url": url, "status": "skipped:not-free"})
+            return
+        if not checkout:
             logger.warning("Epic's checkout did not offer '%s' for the library.", title)
             self.notify_games.append({"title": title, "url": url, "status": "failed:checkout"})
             return
@@ -747,15 +753,29 @@ class FabClaimer(BaseClaimer):
             logger.warning("Trusted Fab checkout click failed: %s", exc)
             return False
 
-    async def _complete_checkout(self) -> bool:
-        """Press "Add to library" in Epic's checkout frame."""
-        document = await self._checkout_document()
+    async def _complete_checkout(self, title: str = "") -> bool | str:
+        """Order only when Epic's checkout proves the total is zero."""
+        document, state, free = None, {}, None
+        for attempt in range(5):
+            if attempt:
+                await self.sleep(2)
+            document = await self._checkout_document()
+            if document is None:
+                continue
+            state = await self._checkout_eval(document, CHECKOUT_STATE_JS) or {}
+            free = checkout_total_is_zero(state.get("text"), title)
+            if free is not None:
+                break
         if document is None:
             logger.debug("No Epic checkout frame on the page.")
             return False
 
-        state = await self._checkout_eval(document, CHECKOUT_STATE_JS) or {}
-        logger.debug("Checkout frame: %r buttons=%r", (state.get("text") or "")[:120], state.get("buttons"))
+        logger.debug("Checkout frame: %r buttons=%r free=%s", (state.get("text") or "")[:120], state.get("buttons"), free)
+        if free is False:
+            return "not-free"
+        if free is None:
+            logger.warning("Could not prove a zero total in Epic's checkout; nothing was ordered.")
+            return False
 
         if await self._human_challenge_present():
             if not await self._wait_out_challenge("Fab checkout"):

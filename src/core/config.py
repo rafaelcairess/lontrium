@@ -255,6 +255,13 @@ class Config:
     pg_redeem: bool = _bool("PG_REDEEM")
     pg_claimdlc: bool = _bool("PG_CLAIMDLC")
 
+    # --- Legacy Games ---
+    # Prime Gaming sometimes hands out short-lived Legacy Games codes. A
+    # persisted browser session is preferred; these values only help complete
+    # the sign-in and redemption form when the session has expired.
+    lg_email: str | None = os.getenv("LG_EMAIL")
+    lg_password: str | None = os.getenv("LG_PASSWORD")
+
     # --- GOG ---
     gog_email: str | None = os.getenv("GOG_EMAIL") or os.getenv("EMAIL")
     gog_password: str | None = os.getenv("GOG_PASSWORD") or os.getenv("PASSWORD")
@@ -262,6 +269,15 @@ class Config:
     gog_force_redeem: bool = _bool("GOG_FORCE_REDEEM")
     gog_otp_enable: bool = _bool("GOG_OTP_ENABLE")
     gog_otp_codes: list[str] = [c.strip() for c in os.getenv("GOG_OTP_CODES", "").split(",") if c.strip()]
+
+    # --- Microsoft Store / Xbox ---
+    ms_email: str | None = os.getenv("MS_EMAIL") or os.getenv("EMAIL")
+    ms_password: str | None = os.getenv("MS_PASSWORD") or os.getenv("PASSWORD")
+    # Lontrium's public setting follows the existing *_OTPKEY convention. The
+    # upstream spelling remains accepted for source users.
+    ms_otp_key: str | None = os.getenv("MS_OTPKEY") or os.getenv("MS_OTP_KEY")
+    ms_force_redeem: bool = _bool("MS_FORCE_REDEEM")
+    ms_claim_dlc: bool = _bool("MS_CLAIM_DLC", default=False)
 
     # --- Steam ---
     steam_username: str | None = os.getenv("STEAM_USERNAME")

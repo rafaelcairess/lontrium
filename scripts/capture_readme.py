@@ -7,7 +7,6 @@ from pathlib import Path
 
 import nodriver as uc
 
-
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "docs" / "images"
 URL = os.environ.get("LONTRIUM_PREVIEW_URL", "http://127.0.0.1:8765")
@@ -75,6 +74,8 @@ async def main() -> None:
 
         await click(page, "#settingsButton")
         await settings_section(page, "help", "02-help.png")
+        await page.evaluate("document.querySelector('#releaseHistory')?.scrollIntoView({block: 'start'})")
+        await shot(page, "09-release-history.png")
         await settings_section(page, "stores", "03-stores.png")
         await settings_section(page, "schedule", "04-schedule.png")
         await settings_section(page, "browser", "05-browser.png")
@@ -82,6 +83,8 @@ async def main() -> None:
 
         await click(page, "#closeSettings")
         await page.sleep(0.35)
+        await page.evaluate("document.querySelector('#redemptionsSection')?.scrollIntoView({block: 'center'})")
+        await shot(page, "10-game-codes.png")
         await page.evaluate("""
           [...document.querySelectorAll('.store-row')].forEach(row => {
             row.style.display = row.querySelector('.store-name')?.textContent === 'AliExpress' ? 'grid' : 'none';

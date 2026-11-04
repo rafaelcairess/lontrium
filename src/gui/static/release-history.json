@@ -1,0 +1,374 @@
+{
+  "releases": [
+    {
+      "version": "1.8.0",
+      "date": "2026-11-04",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.8.0",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "Optional Microsoft/Xbox and Legacy Games integrations.",
+            "pt-BR": "Integrações opcionais com Microsoft/Xbox e Legacy Games.",
+            "es": "Integraciones opcionales con Microsoft/Xbox y Legacy Games."
+          }
+        },
+        {
+          "category": "security",
+          "text": {
+            "en": "Passwords, tokens, accounts and game codes are redacted from logs.",
+            "pt-BR": "Senhas, tokens, contas e códigos de jogos são ocultados dos logs.",
+            "es": "Contraseñas, tokens, cuentas y códigos de juegos se ocultan de los registros."
+          }
+        },
+        {
+          "category": "added",
+          "text": {
+            "en": "A private code-redemption status panel and offline release history.",
+            "pt-BR": "Painel privado de códigos e histórico de versões disponível sem internet.",
+            "es": "Panel privado de códigos e historial de versiones disponible sin conexión."
+          }
+        },
+        {
+          "category": "fixed",
+          "text": {
+            "en": "Broader AliExpress languages and safer Epic, Fab and Fanatical checkouts.",
+            "pt-BR": "Mais idiomas no AliExpress e checkouts mais seguros na Epic, Fab e Fanatical.",
+            "es": "Más idiomas en AliExpress y pagos más seguros en Epic, Fab y Fanatical."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.7.4",
+      "date": "2026-11-04",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.7.4",
+      "items": [
+        {
+          "category": "fixed",
+          "text": {
+            "en": "AliExpress can activate a browser-saved password after focusing the remembered account field.",
+            "pt-BR": "O AliExpress ativa a senha salva pelo navegador ao focar o campo da conta lembrada.",
+            "es": "AliExpress activa la contraseña guardada por el navegador al enfocar la cuenta recordada."
+          }
+        },
+        {
+          "category": "fixed",
+          "text": {
+            "en": "Cancel run no longer shuts down the dashboard.",
+            "pt-BR": "Cancelar execução não desliga mais o painel.",
+            "es": "Cancelar ejecución ya no apaga el panel."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.7.3",
+      "date": "2026-10-26",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.7.3",
+      "items": [
+        {
+          "category": "fixed",
+          "text": {
+            "en": "Docker Desktop starts silently and late windows are hidden.",
+            "pt-BR": "O Docker Desktop inicia silenciosamente e janelas tardias são ocultadas.",
+            "es": "Docker Desktop inicia silenciosamente y se ocultan sus ventanas tardías."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.7.2",
+      "date": "2026-10-26",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.7.2",
+      "items": [
+        {
+          "category": "fixed",
+          "text": {
+            "en": "Scheduled Windows runs wait for the real dashboard run and keep useful diagnostics.",
+            "pt-BR": "Execuções agendadas aguardam a execução real do painel e preservam diagnósticos úteis.",
+            "es": "Las ejecuciones programadas esperan la ejecución real del panel y conservan diagnósticos útiles."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.7.1",
+      "date": "2026-10-24",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.7.1",
+      "items": [
+        {
+          "category": "improved",
+          "text": {
+            "en": "Responsive Settings, clearer login actions and corrected Brazilian Portuguese.",
+            "pt-BR": "Configurações responsivas, ações de login mais claras e português brasileiro corrigido.",
+            "es": "Ajustes responsivos, acciones de inicio más claras y portugués brasileño corregido."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.7.0",
+      "date": "2026-10-23",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.7.0",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "Permanent Help, store cards, tooltips and visible version information.",
+            "pt-BR": "Ajuda permanente, cards de lojas, dicas e versão visível.",
+            "es": "Ayuda permanente, tarjetas de tiendas, consejos y versión visible."
+          }
+        },
+        {
+          "category": "improved",
+          "text": {
+            "en": "Browser login became the recommended passwordless path.",
+            "pt-BR": "O login pelo navegador tornou-se o caminho recomendado sem salvar senha.",
+            "es": "El inicio desde el navegador se convirtió en la opción recomendada sin guardar contraseña."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.6.5",
+      "date": "2026-10-23",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.6.5",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "Automatic CPU, GPU and memory protection defers heavy scheduled runs.",
+            "pt-BR": "Proteção automática de CPU, GPU e memória adia execuções pesadas.",
+            "es": "La protección automática de CPU, GPU y memoria aplaza ejecuciones pesadas."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.6.4",
+      "date": "2026-10-04",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.6.4",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "Native CAPTCHA notifications can open the browser or skip the current store.",
+            "pt-BR": "Notificações nativas de CAPTCHA podem abrir o navegador ou pular a loja atual.",
+            "es": "Las notificaciones nativas de CAPTCHA pueden abrir el navegador u omitir la tienda actual."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.6.3",
+      "date": "2026-09-24",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.6.3",
+      "items": [
+        {
+          "category": "fixed",
+          "text": {
+            "en": "Epic checkout challenges and trusted cross-frame clicks became more reliable.",
+            "pt-BR": "Desafios e cliques confiáveis no checkout da Epic ficaram mais estáveis.",
+            "es": "Los desafíos y clics confiables del pago de Epic se hicieron más estables."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.6.2",
+      "date": "2026-09-23",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.6.2",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "AliExpress expired-login recovery opens the active browser.",
+            "pt-BR": "A recuperação de login expirado do AliExpress abre o navegador ativo.",
+            "es": "La recuperación del inicio vencido de AliExpress abre el navegador activo."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.6.1",
+      "date": "2026-09-22",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.6.1",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "Windows alerts for failures, timeouts and silent scheduled startup.",
+            "pt-BR": "Alertas do Windows para falhas, tempo limite e início agendado silencioso.",
+            "es": "Alertas de Windows para fallos, tiempos agotados e inicio programado silencioso."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.6.0",
+      "date": "2026-09-19",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.6.0",
+      "items": [
+        {
+          "category": "improved",
+          "text": {
+            "en": "Economy mode became the default and old scheduled tasks migrate automatically.",
+            "pt-BR": "O modo econômico virou padrão e tarefas antigas são migradas automaticamente.",
+            "es": "El modo económico pasó a ser predeterminado y las tareas antiguas se migran automáticamente."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.5.1",
+      "date": "2026-09-18",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.5.1",
+      "items": [
+        {
+          "category": "fixed",
+          "text": {
+            "en": "Updates preserve existing data and the Windows launcher renders correctly.",
+            "pt-BR": "Atualizações preservam os dados e o inicializador do Windows é exibido corretamente.",
+            "es": "Las actualizaciones conservan los datos y el iniciador de Windows se muestra correctamente."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.5.0",
+      "date": "2026-09-17",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.5.0",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "Smart Wake, cancellation controls and automatic Steam base-game handling.",
+            "pt-BR": "Smart Wake, controles de cancelamento e tratamento automático de jogos base da Steam.",
+            "es": "Smart Wake, controles de cancelación y manejo automático de juegos base de Steam."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.4.0",
+      "date": "2026-09-13",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.4.0",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "Native Windows scheduling starts Docker only for pending work.",
+            "pt-BR": "O agendamento nativo do Windows inicia o Docker apenas quando há trabalho pendente.",
+            "es": "La programación nativa de Windows inicia Docker solo cuando hay trabajo pendiente."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.3.0",
+      "date": "2026-09-11",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.3.0",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "Native Windows CAPTCHA alerts and secure manual-action events.",
+            "pt-BR": "Alertas nativos de CAPTCHA e eventos seguros de ação manual.",
+            "es": "Alertas nativas de CAPTCHA y eventos seguros de acción manual."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.2.2",
+      "date": "2026-09-10",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.2.2",
+      "items": [
+        {
+          "category": "fixed",
+          "text": {
+            "en": "Steam clearly distinguishes an empty giveaway list from a failure.",
+            "pt-BR": "A Steam diferencia claramente uma lista vazia de promoções de uma falha.",
+            "es": "Steam diferencia claramente una lista vacía de promociones de un fallo."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.2.1",
+      "date": "2026-09-10",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.2.1",
+      "items": [
+        {
+          "category": "fixed",
+          "text": {
+            "en": "Steam login and official-store giveaway discovery were stabilized.",
+            "pt-BR": "O login e a descoberta de promoções oficiais da Steam foram estabilizados.",
+            "es": "Se estabilizaron el inicio y el descubrimiento de promociones oficiales de Steam."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.2.0",
+      "date": "2026-09-09",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.2.0",
+      "items": [
+        {
+          "category": "improved",
+          "text": {
+            "en": "The six-step passwordless introduction became reusable from Settings.",
+            "pt-BR": "A introdução de seis etapas sem senha passou a ser reutilizável nas Configurações.",
+            "es": "La introducción de seis pasos sin contraseña pasó a ser reutilizable desde Ajustes."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-09-07",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.1.0",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "Shopee daily coin check-in with manual Google login.",
+            "pt-BR": "Check-in diário de moedas da Shopee com login manual pelo Google.",
+            "es": "Registro diario de monedas de Shopee con inicio manual mediante Google."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.0.1",
+      "date": "2026-09-07",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.0.1",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "Windows economy startup releases Docker memory after automatic runs.",
+            "pt-BR": "A inicialização econômica libera a memória do Docker após execuções automáticas.",
+            "es": "El inicio económico libera la memoria de Docker tras las ejecuciones automáticas."
+          }
+        }
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2026-09-06",
+      "url": "https://github.com/rafaelcairess/lontrium/releases/tag/v1.0.0",
+      "items": [
+        {
+          "category": "added",
+          "text": {
+            "en": "Lontrium Control launched with its local dashboard, installer and otter identity.",
+            "pt-BR": "O Lontrium Control nasceu com painel local, instalador e identidade da lontra.",
+            "es": "Lontrium Control nació con panel local, instalador e identidad de nutria."
+          }
+        }
+      ]
+    }
+  ]
+}

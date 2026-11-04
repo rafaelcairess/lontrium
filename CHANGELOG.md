@@ -3,6 +3,29 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.8.0] - 2026-11-04
+
+### Added
+- Optional Microsoft Store/Xbox and Legacy Games modules, both disabled by default and designed around persistent Browser sessions with optional autofill credentials.
+- Safe game-code status cards for Prime Gaming redemptions. The dashboard receives only title, destination, state and suggested action; codes and account data remain private.
+- A one-time “Lontrium updated” modal and a permanent offline release history in Help, translated into English, Brazilian Portuguese and Spanish.
+- Local endpoints for release history and acknowledgement, with the viewed version stored in the persistent `ui-state.json` file.
+
+### Security
+- Added central log redaction for passwords, TOTP secrets, accounts, notification tokens, private URL components and game codes, including exception tracebacks and third-party library output.
+- SQL parameter echo is disabled so values cannot bypass the redaction filter.
+- Fab and Fanatical now stop safely unless checkout information proves that the total is zero.
+
+### Changed
+- Chrome profile cache is capped at 250 MB. Browser shutdown first requests a clean Chrome close so cookies and sessions reach disk, then removes only residual processes.
+- Prime Gaming revisits entries whose external code has not appeared and routes Microsoft/Xbox and Legacy Games codes to their selected modules.
+- `PG_REDEEM` was removed from Settings while its existing configuration value remains compatible.
+
+### Fixed
+- AliExpress recognizes check-in actions in all 18 supported languages and confirms collection through the daily calendar while preserving remembered-password login recovery.
+- Epic handles both the current `/checkout` frame and the older purchase frame.
+- Failed or inconclusive Microsoft, Legacy Games, Fab and Fanatical actions remain available for a later scheduled retry instead of being recorded as completed.
+
 ## [1.7.4] - 2026-11-04
 
 ### Fixed

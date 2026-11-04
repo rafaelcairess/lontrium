@@ -1,3 +1,15 @@
+# Modificações do Lontrium Control
+
+## Camada Lontrium v1.8.0
+
+O Lontrium mantém a atribuição e a licença AGPL-3.0 do Free-Games-Claimer-Remaster, mas acrescenta uma experiência local para Windows: painel próprio, instalador Inno Setup, launcher silencioso, agendamento econômico, proteção de CPU/GPU/memória, histórico sanitizado e atualização preservando dados.
+
+Nesta versão, melhorias selecionadas do projeto-base foram adaptadas ao modelo do Lontrium: Microsoft/Xbox e Legacy Games são módulos opcionais; códigos do Prime têm uma API pública sem segredos; todos os logs passam por redação central; o Chrome tem cache limitado e encerramento limpo; e o histórico visual contém somente versões reais do Lontrium desde a v1.0.0.
+
+As sessões, credenciais opcionais, banco e configurações continuam no volume local. O frontend nunca recebe senhas, TOTP ou códigos completos. CAPTCHA, login social, passkeys e códigos enviados por e-mail continuam exigindo ação manual no Browser.
+
+---
+
 # Comprehensive Architectural & Security Review: Python Remaster vs Original JS
 
 This document serves as a 100% transparent, file-by-file technical breakdown of the `fgc-remaster` (Python) project compared to the original `free-games-claimer` (Node.js). 

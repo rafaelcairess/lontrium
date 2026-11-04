@@ -12,11 +12,12 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import String, DateTime, Text, delete, func, select
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy import DateTime, String, Text, delete, event, func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from src.core.config import cfg
+from src.core.redact import hide, mask_account, mask_code
 
 logger = logging.getLogger("fgc.database")
 
@@ -25,7 +26,10 @@ logger = logging.getLogger("fgc.database")
 # Engine & session factory
 # ---------------------------------------------------------------------------
 
-engine = create_async_engine(cfg.database_url, echo=cfg.debug_libs)
+# SQL parameter logging can contain accounts, private URLs and redemption codes.
+# Keep statements available through the normal logger without enabling SQLAlchemy's
+# independent echo handler, which would bypass the central redaction filter.
+engine = create_async_engine(cfg.database_url)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -66,6 +70,18 @@ class ClaimedGame(Base):
         return f"<ClaimedGame store={self.store!r} title={self.title!r} status={self.status!r}>"
 
 
+@event.listens_for(ClaimedGame.code, "set")
+def _hide_new_code(target, value, oldvalue, initiator):
+    """Teach the log filter about every game code as soon as it is stored."""
+    hide(value, mask_code(value))
+
+
+@event.listens_for(ClaimedGame, "load")
+def _hide_stored_code(target, context):
+    """Teach the filter about codes loaded from an existing database too."""
+    hide(target.code, mask_code(target.code))
+
+
 class DashboardHistory(Base):
     """A privacy-safe store result shown in the persistent dashboard history."""
 
@@ -102,7 +118,7 @@ async def init_db() -> None:
     """Create all tables if they don't exist yet."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.debug("Database ready: %s", cfg.database_url)
+    logger.debug("Database ready.")
 
 
 async def get_or_create(
@@ -127,7 +143,8 @@ async def get_or_create(
     result = await session.execute(stmt)
     obj = result.scalar_one_or_none()
     if obj is not None:
-        logger.debug("DB hit: %s/%s/%s already stored as '%s' (%s)", store, user, game_id, obj.title, obj.status)
+        logger.debug("DB hit: %s/%s/%s already stored as '%s' (%s)",
+                     store, mask_account(user), game_id, obj.title, obj.status)
         return obj, False
 
     obj = ClaimedGame(
@@ -141,7 +158,7 @@ async def get_or_create(
     )
     session.add(obj)
     await session.flush()
-    logger.debug("DB new row: %s/%s/%s '%s' (%s)", store, user, game_id, title, status)
+    logger.debug("DB new row: %s/%s/%s '%s' (%s)", store, mask_account(user), game_id, title, status)
     return obj, True
 
 
@@ -241,6 +258,62 @@ async def load_dashboard_history(limit: int = 250, session_factory=None) -> list
             .limit(safe_limit)
         )
         return [_history_row(row) for row in result.scalars().all()]
+
+
+def _redemption_target(row: ClaimedGame) -> tuple[str, str] | None:
+    """Return the public destination key/name for an external Prime code."""
+    try:
+        extra = json.loads(row.extra or "{}")
+    except (TypeError, json.JSONDecodeError):
+        extra = {}
+    tag = str(extra.get("external_store") or "").strip().lower()
+    if "gog" in tag:
+        return "gog", "GOG"
+    if tag in {"microsoft store", "microsoft", "xbox"}:
+        return "microsoft", "Microsoft / Xbox"
+    if tag == "legacy games":
+        return "legacygames", "Legacy Games"
+    return None
+
+
+async def load_redemption_status(limit: int = 100, session_factory=None) -> list[dict]:
+    """Return a secret-free view of Prime redemption codes for the dashboard."""
+    factory = session_factory or async_session
+    safe_limit = min(max(int(limit), 1), 250)
+    async with factory() as session:
+        rows = (await session.execute(
+            select(ClaimedGame)
+            .where(ClaimedGame.store == "prime")
+            .order_by(ClaimedGame.updated_at.desc(), ClaimedGame.id.desc())
+            .limit(safe_limit * 3)
+        )).scalars().all()
+
+    public = []
+    for row in rows:
+        target = _redemption_target(row)
+        if target is None or not row.code:
+            continue
+        status = str(row.status or "").lower()
+        if "already redeemed" in status or "claimed and redeemed" in status:
+            state = "redeemed"
+        elif ("redeem failed" in status or "rejected" in status or "expired" in status
+              or "code used" in status):
+            state = "failed"
+        elif "unconfirmed" in status:
+            state = "retry"
+        else:
+            state = "pending"
+        key, name = target
+        public.append({
+            "title": str(row.title or "Game")[:180],
+            "target": key,
+            "targetName": name,
+            "state": state,
+            "action": "configure" if state in {"pending", "retry"} else None,
+        })
+        if len(public) >= safe_limit:
+            break
+    return public
 
 
 _LAST_AUTOMATIC_RUN_KEY = "last_automatic_run"

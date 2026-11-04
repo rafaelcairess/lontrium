@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -13,8 +13,10 @@ from dotenv import set_key
 from src.core.config import cfg
 from src.version import __version__
 
-
-STORE_KEYS = ("steam", "epic", "fab", "prime", "gog", "ubisoft", "unity", "gamerpower", "aliexpress", "shopee")
+STORE_KEYS = (
+    "steam", "epic", "fab", "prime", "microsoft", "legacygames",
+    "gog", "ubisoft", "unity", "gamerpower", "aliexpress", "shopee",
+)
 
 
 @dataclass(frozen=True)
@@ -102,7 +104,11 @@ SPECS = (
     _setting("PG_EMAIL", "pg_email", "prime", "password", secret=True, credential=True),
     _setting("PG_PASSWORD", "pg_password", "prime", "password", secret=True, credential=True),
     _setting("PG_OTPKEY", "pg_otpkey", "prime", "password", secret=True, credential=True),
-    _setting("PG_REDEEM", "pg_redeem", "prime", "boolean"),
+    _setting("MS_EMAIL", "ms_email", "microsoft", "password", secret=True, credential=True),
+    _setting("MS_PASSWORD", "ms_password", "microsoft", "password", secret=True, credential=True),
+    _setting("MS_OTPKEY", "ms_otp_key", "microsoft", "password", secret=True, credential=True),
+    _setting("LG_EMAIL", "lg_email", "legacygames", "password", secret=True, credential=True),
+    _setting("LG_PASSWORD", "lg_password", "legacygames", "password", secret=True, credential=True),
     _setting("GOG_EMAIL", "gog_email", "gog", "password", secret=True, credential=True),
     _setting("GOG_PASSWORD", "gog_password", "gog", "password", secret=True, credential=True),
     _setting("GOG_NEWSLETTER", "gog_newsletter", "gog", "boolean"),
@@ -292,4 +298,8 @@ def complete_setup(values: dict, *, settings_path: Path | None = None, marker_pa
         marker.chmod(0o600)
     except OSError:
         pass
+    # A fresh install starts on the current version, so it must not be greeted
+    # as though it had just upgraded from an older one.
+    from src.gui.releases import acknowledge_release
+    acknowledge_release(__version__, marker.parent / "ui-state.json")
     return {**result, "setup": {"required": bool(cfg.gui_setup_required), "complete": True}}

@@ -8,13 +8,14 @@ from threading import Lock
 from time import monotonic
 from uuid import uuid4
 
-
 STORE_META = {
     # Authentication metadata is descriptive only; secrets never leave the settings API.
     "steam": {"name": "Steam", "badge": "S", "color": "#1b9fff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.steam"},
     "epic": {"name": "Epic Games", "badge": "E", "color": "#ffffff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.epic"},
     "fab": {"name": "Fab", "badge": "F", "color": "#6e56cf", "authMode": "inherited", "authNoteKey": "storeAuth.fab", "descriptionKey": "storeDescription.fab"},
     "prime": {"name": "Prime Gaming", "badge": "P", "color": "#9146ff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.prime"},
+    "microsoft": {"name": "Microsoft / Xbox", "badge": "X", "color": "#107c10", "authMode": "optional", "authNoteKey": "storeAuth.microsoft", "descriptionKey": "storeDescription.microsoft"},
+    "legacygames": {"name": "Legacy Games", "badge": "L", "color": "#d08b32", "authMode": "optional", "authNoteKey": "storeAuth.legacygames", "descriptionKey": "storeDescription.legacygames"},
     "gog": {"name": "GOG", "badge": "G", "color": "#b65cff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.gog"},
     "ubisoft": {"name": "Ubisoft", "badge": "U", "color": "#29a3ff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.ubisoft"},
     "unity": {"name": "Unity", "badge": "U", "color": "#ffffff", "authMode": "optional", "authNoteKey": "storeAuth.optional", "descriptionKey": "storeDescription.unity"},
@@ -33,6 +34,8 @@ _STORE_AUTH_METADATA = {
     "epic": ("optional", "storeAuth.optional", "storeDescription.epic"),
     "fab": ("inherited", "storeAuth.fab", "storeDescription.fab"),
     "prime": ("optional", "storeAuth.optional", "storeDescription.prime"),
+    "microsoft": ("optional", "storeAuth.microsoft", "storeDescription.microsoft"),
+    "legacygames": ("optional", "storeAuth.legacygames", "storeDescription.legacygames"),
     "gog": ("optional", "storeAuth.optional", "storeDescription.gog"),
     "ubisoft": ("optional", "storeAuth.optional", "storeDescription.ubisoft"),
     "unity": ("optional", "storeAuth.optional", "storeDescription.unity"),

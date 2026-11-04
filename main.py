@@ -27,20 +27,31 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.schedulers.base import STATE_PAUSED
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+from rich.console import Console
+
+# ---------------------------------------------------------------------------
+# Logging – user-friendly by default, verbose only on errors
+# ---------------------------------------------------------------------------
+from rich.logging import RichHandler
+from rich.markup import escape
 
 from src.core.config import cfg, settings_warnings
-from src.core.privacy import mask_account
 from src.core.database import (
     init_db,
     load_dashboard_history,
     load_last_automatic_run,
+    load_redemption_status,
     save_dashboard_history,
     save_last_automatic_run,
 )
+from src.core.notifier import notify
+from src.core.privacy import mask_account
+from src.core.redact import RedactFilter, hide_settings
+from src.core.resource_guard import evaluate as evaluate_resource_guard
+from src.core.resource_guard import next_fixed_slot, sample_resources
 from src.core.selection import apply_run_selection
 from src.core.updates import get_update_status, notify_if_update_available
-from src.core.notifier import notify
-from src.core.resource_guard import evaluate as evaluate_resource_guard, next_fixed_slot, sample_resources
+from src.gui.releases import acknowledge_release, get_release_history
 from src.gui.settings import (
     SettingsError,
     complete_setup,
@@ -54,14 +65,8 @@ from src.gui.state import (
     store_result_succeeded,
     summarize_store_result,
 )
-from src.version import __version__, __author__, __repo__, __contributors__
+from src.version import __author__, __contributors__, __repo__, __version__
 
-# ---------------------------------------------------------------------------
-# Logging – user-friendly by default, verbose only on errors
-# ---------------------------------------------------------------------------
-from rich.logging import RichHandler
-from rich.markup import escape
-from rich.console import Console
 
 # This filter automatically adds the store name (e.g. "[Steam]", "[Epic]")
 # in front of every log message, so you can easily tell which module is talking.
@@ -69,8 +74,8 @@ class StorePrefixFilter(logging.Filter):
     def filter(self, record):
         if record.name.startswith("fgc."):
             store = record.name.split(".")[-1]
-            if store in ("epic", "steam", "gog", "prime", "aliexpress", "shopee", "ubisoft", "fab", "unity"):
-                store_map = {"gog": "GOG", "epic": "Epic", "steam": "Steam", "prime": "Prime", "aliexpress": "AliExpress", "shopee": "Shopee", "ubisoft": "Ubisoft", "fab": "Fab", "unity": "Unity"}
+            if store in ("epic", "steam", "gog", "prime", "microsoft", "legacygames", "aliexpress", "shopee", "ubisoft", "fab", "unity"):
+                store_map = {"gog": "GOG", "epic": "Epic", "steam": "Steam", "prime": "Prime", "microsoft": "Microsoft", "legacygames": "Legacy Games", "aliexpress": "AliExpress", "shopee": "Shopee", "ubisoft": "Ubisoft", "fab": "Fab", "unity": "Unity"}
                 prefix = escape(f"[{store_map[store]}]")
                 # Prepend to the message template
                 record.msg = f"{prefix} {record.msg}"
@@ -85,6 +90,8 @@ handler = RichHandler(
     markup=True,
 )
 handler.addFilter(StorePrefixFilter())
+hide_settings(cfg)
+handler.addFilter(RedactFilter())
 
 logging.basicConfig(
     level=logging.DEBUG if cfg.debug else logging.INFO,
@@ -98,10 +105,16 @@ logger = logging.getLogger("fgc")
 NOISY_LIBRARIES = (
     "nodriver", "uc", "websockets", "httpx", "httpcore",
     "aiosqlite", "sqlalchemy", "apscheduler", "tzlocal", "asyncio", "apprise",
+    "urllib3", "MARKDOWN",
 )
 if not cfg.debug_libs:
     for _name in NOISY_LIBRARIES:
         logging.getLogger(_name).setLevel(logging.WARNING)
+else:
+    # SQL values may contain a code the process has not loaded yet. Statements
+    # remain visible, while bound values stay private.
+    for _name in ("sqlalchemy.engine", "aiosqlite"):
+        logging.getLogger(_name).setLevel(logging.INFO)
 
 
 # asyncio warns about Chrome PIDs we deliberately reaped ourselves in close_browser().
@@ -123,6 +136,8 @@ ALL_CLAIMERS: dict[str, tuple[str, str]] = {
     "epic":       ("Epic Games",   "src.stores.epic:claim_epic"),
     "fab":        ("Fab",          "src.stores.epic_fab:claim_fab"),
     "prime":      ("Prime Gaming", "src.stores.prime:claim_prime"),
+    "microsoft":  ("Microsoft",    "src.stores.microsoft:claim_microsoft"),
+    "legacygames": ("Legacy Games", "src.stores.legacygames:claim_legacygames"),
     "gog":        ("GOG",          "src.stores.gog:claim_gog"),
     "ubisoft":    ("Ubisoft",      "src.stores.ubisoft:claim_ubisoft"),
     "unity":      ("Unity",        "src.stores.unity:claim_unity"),
@@ -158,6 +173,14 @@ _ALIASES: dict[str, str] = {
     "prime-gaming":  "prime",
     "primegaming":   "prime",
     "amazon":        "prime",
+    "microsoft":     "microsoft",
+    "microsoft-store": "microsoft",
+    "xbox":          "microsoft",
+    "ms":            "microsoft",
+    "legacy":        "legacygames",
+    "legacy-games":  "legacygames",
+    "legacygames":   "legacygames",
+    "lg":            "legacygames",
     "gog":           "gog",
     "ubisoft":       "ubisoft",
     "ubi":           "ubisoft",
@@ -374,7 +397,7 @@ async def run_claimers(
                 logger.debug("▶ Running %s claimer…", name)
                 res = await asyncio.wait_for(func(), timeout=max(0.001, cfg.store_run_timeout))
                 if isinstance(res, dict):
-                    logger.debug("%s returned %d game entr(ies): %s", name, len(res.get("games") or []), res.get("games"))
+                    logger.debug("%s returned %d game entr(ies).", name, len(res.get("games") or []))
                 if isinstance(res, dict) and res.get("games"):
                     aggregated_results.append(res)
                 message, details = summarize_store_result(store_key, res)
@@ -419,8 +442,9 @@ async def run_claimers(
             logger.debug("Skipping pending GOG codes redemption as 'gog' is not in STORES.")
         else:
             try:
-                from src.core.database import async_session, ClaimedGame
                 from sqlalchemy import select
+
+                from src.core.database import ClaimedGame, async_session
 
                 async with async_session() as session:
                     has_pending = cfg.gog_force_redeem
@@ -689,8 +713,9 @@ async def main() -> None:
 
     if cfg.reset_db_games:
         try:
-            from src.core.database import async_session, ClaimedGame
             from sqlalchemy import delete
+
+            from src.core.database import ClaimedGame, async_session
             
             seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
             
@@ -785,7 +810,9 @@ async def main() -> None:
                 "wakeOnAc": cfg.windows_wake_on_ac,
                 "lastAutomaticRun": last_automatic_run.isoformat() if last_automatic_run else None,
             }
-            return dashboard_state.snapshot(enabled, schedule)
+            payload = dashboard_state.snapshot(enabled, schedule)
+            payload["pendingRedemptions"] = await load_redemption_status()
+            return payload
 
         async def dashboard_history(limit: int, run_id: str | None) -> dict:
             return {"history": dashboard_state.history(limit=limit, run_id=run_id)}
@@ -812,6 +839,12 @@ async def main() -> None:
 
         async def dashboard_update() -> dict:
             return await get_update_status()
+
+        async def dashboard_releases() -> dict:
+            return get_release_history(setup_complete=get_setup_state()["complete"])
+
+        async def dashboard_release_ack(version: str) -> dict:
+            return acknowledge_release(version)
 
         async def dashboard_manual_actions() -> dict:
             return dashboard_state.manual_actions(cfg.windows_notifications)
@@ -953,6 +986,8 @@ async def main() -> None:
             config_callback=dashboard_config,
             save_callback=dashboard_save,
             setup_callback=dashboard_setup,
+            releases_callback=dashboard_releases,
+            release_ack_callback=dashboard_release_ack,
             update_callback=dashboard_update,
             manual_actions_callback=dashboard_manual_actions,
             manual_action_callback=dashboard_manual_action,

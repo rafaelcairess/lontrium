@@ -29,6 +29,28 @@ URL_LOGIN = (
     "&noHostRedirect=true&redirectUrl=" + URL_CLAIM
 )
 
+# A price with two decimals in any currency/order ("PLN 0.00", "0,00 €",
+# "1 234,56"). Plain numbers such as an age rating are deliberately ignored.
+AMOUNT_RE = re.compile(r"(?<!\d)\d{1,3}(?:[\s.,]\d{3})*[.,]\d{2}(?!\d)")
+
+
+def checkout_total_is_zero(text, title: str = "") -> bool | None:
+    """True only for a proved zero total, False for money, None if unreadable."""
+    low = str(text or "").lower()
+    at = low.rfind("total")
+    if at >= 0:
+        window = low[at + 5:at + 80]
+        number = re.search(r"\d[\d.,\u00a0\u202f ]*", window)
+        if number:
+            return not re.sub(r"\D", "", number.group(0)).strip("0")
+        return True if "free" in window else None
+    if title:
+        low = low.replace(str(title).lower(), " ")
+    amounts = AMOUNT_RE.findall(low)
+    if not amounts:
+        return None
+    return all(not re.sub(r"\D", "", amount).strip("0") for amount in amounts)
+
 
 # Reads the product page's main action button. The order matters: an "In Library" chip in a
 # recommendation row must never win over this product's own Get button.
@@ -943,7 +965,7 @@ class EpicGamesClaimer(BaseClaimer):
                             if (body.includes('thank you') || body.includes("it's all yours")
                                 || body.includes('successfully')
                                 || (body.includes('in library') && !body.includes('add it to your library'))) return 'success';
-                            if (document.querySelector('#webPurchaseContainer iframe')) return 'purchase iframe';
+                            if (document.querySelector('#webPurchaseContainer iframe, iframe[src*="/checkout"]')) return 'purchase iframe';
 
                             const btns = [...document.querySelectorAll('button')];
                             for (const btn of btns) {
@@ -1315,10 +1337,8 @@ class EpicGamesClaimer(BaseClaimer):
                 if await self._human_challenge_present():
                     if not await self._wait_out_challenge("Epic Games checkout"):
                         return False
-                has_iframe = await self.page.evaluate(
-                    """!!document.querySelector('#webPurchaseContainer iframe')"""
-                )
-                if has_iframe:
+                frame_tree = await self.page.send(uc.cdp.page.get_frame_tree())
+                if self._find_purchase_frame(frame_tree):
                     break
                 await self.sleep(1)
             else:
@@ -1432,7 +1452,7 @@ class EpicGamesClaimer(BaseClaimer):
             return None
         for child in frame_tree.child_frames:
             url = child.frame.url or ""
-            if "payment" in url or "purchase" in url or "webPurchaseContainer" in url:
+            if "payment" in url or "purchase" in url or "/checkout" in url or "webPurchaseContainer" in url:
                 return child.frame.id_
             found = self._find_purchase_frame(child)
             if found:
@@ -1503,7 +1523,7 @@ class EpicGamesClaimer(BaseClaimer):
         frame_raw = await self.page.evaluate(
             """
             JSON.stringify((() => {
-                const frame = document.querySelector('#webPurchaseContainer iframe');
+                const frame = document.querySelector('#webPurchaseContainer iframe, iframe[src*="/checkout"]');
                 if (!frame) return null;
                 const rect = frame.getBoundingClientRect();
                 return {x: rect.left, y: rect.top, width: rect.width, height: rect.height};

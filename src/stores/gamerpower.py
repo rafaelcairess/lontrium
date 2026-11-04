@@ -6,19 +6,18 @@ redemption sites (Fanatical, Alienware Arena, Itch.io, IndieGala)
 according to user configuration.
 """
 import json
+import logging
 import re
-import httpx
 from urllib.parse import urlparse
 
+import httpx
 from sqlalchemy import select
 
-from src.core.claimer import BaseClaimer, mask_account
+from src.core.claimer import BaseClaimer, filenamify, mask_account
 from src.core.config import cfg
-from src.core.database import async_session, ClaimedGame, get_or_create
+from src.core.database import ClaimedGame, async_session, get_or_create
 from src.core.selection import is_store_active
 from src.core.url_security import url_has_allowed_host
-import logging
-from src.core.claimer import filenamify
 
 logger = logging.getLogger("fgc.gamerpower")
 
@@ -29,6 +28,8 @@ CLAIMABLE_TYPES = ("game", "early access")
 
 # Host to store key. Order matters only for readability, hosts never overlap.
 _STORE_HOSTS = (
+    ("microsoft", "xbox.com"),
+    ("microsoft", "microsoft.com"),
     ("steam", "store.steampowered.com"),
     ("epic", "epicgames.com"),
     ("gog", "gog.com"),
@@ -40,10 +41,12 @@ _STORE_HOSTS = (
 )
 
 # Stores with a module of their own, which finds these giveaways without GamerPower's help.
-COVERED_ELSEWHERE = {"ubisoft": "ubisoft"}
+COVERED_ELSEWHERE = {"ubisoft": "ubisoft", "microsoft": "microsoft"}
 
 # Only consulted when the resolved address gives nothing away.
 _INSTRUCTION_HINTS = (
+    ("microsoft", "microsoft store"),
+    ("microsoft", "xbox"),
     ("indiegala", "indiegala"),
     ("alienware", "alienware"),
     ("fanatical", "fanatical"),
@@ -75,6 +78,37 @@ def classify_target(final_url: str, instructions: str = "") -> str:
         if hint in text:
             return store
     return "unknown"
+
+
+async def discover_microsoft_giveaways() -> list[dict]:
+    """Return GamerPower offers routed to Microsoft/Xbox without opening Chrome."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.get(GAMERPOWER_API_URL)
+        response.raise_for_status()
+        payload = response.json()
+    if not isinstance(payload, list):
+        return []
+
+    router = GamerPowerClaimer()
+    found: list[dict] = []
+    for item in payload:
+        if not is_wanted(item, cfg.ms_claim_dlc):
+            continue
+        giveaway_url = str(item.get("open_giveaway_url") or "")
+        game = {
+            "title": re.sub(r"(?i)\s*(?:\(\s*xbox\s*\)|giveaway|free)\s*$", "", str(item.get("title") or "Unknown")).strip(),
+            "url": giveaway_url,
+            "giveaway_url": giveaway_url,
+            "instructions": item.get("instructions", "") or "",
+            "type": item.get("type", "") or "",
+            "platforms": item.get("platforms", "") or "",
+        }
+        target, final_url = await router._route(game)
+        if target == "microsoft":
+            game["final_url"] = final_url
+            game["url"] = final_url
+            found.append(game)
+    return found
 
 # Two-factor screens differ per site, so the code box is found by what it is, not by its name.
 OTP_FIELD = "[data-otp-field]"
@@ -156,6 +190,19 @@ def fanatical_game_id(url: str) -> str:
     """Fanatical's own identifier for a giveaway: the slug behind /game/ or /giveaway/."""
     match = re.search(r"/(?:game|giveaway|bundle)/([a-z0-9-]+)", str(url or "").lower())
     return match.group(1) if match else ""
+
+
+def fanatical_total_is_zero(text: str) -> bool | None:
+    """Read Fanatical's checkout total without treating a generic 'free' label as proof."""
+    low = re.sub(r"\s+", " ", str(text or "")).lower()
+    matches = list(re.finditer(r"\btotal\b", low))
+    if not matches:
+        return None
+    window = low[matches[-1].end():matches[-1].end() + 80]
+    amount = re.search(r"\d{1,3}(?:[\s.,]\d{3})*[.,]\d{2}", window)
+    if amount:
+        return not re.sub(r"\D", "", amount.group(0)).strip("0")
+    return True if re.search(r"\bfree\b", window) else None
 
 
 # An owned itch.io game carries a purchase banner; a page you do not own carries none.
@@ -715,6 +762,7 @@ class GamerPowerClaimer(BaseClaimer):
 
             # Check already claimed
             body_text = await self.page.evaluate("(document.body?.innerText || '').toLowerCase()")
+            free_before = fanatical_total_is_zero(body_text)
             if "already claimed" in body_text or "you have claimed" in body_text:
                 logger.info("[Fanatical] '%s' already claimed.", title)
                 if cfg.dryrun:
@@ -806,6 +854,14 @@ class GamerPowerClaimer(BaseClaimer):
             claimed = False
             if clicked:
                 await self.sleep(6)
+                after_text = await self.page.evaluate("document.body?.innerText || ''")
+                free_after = fanatical_total_is_zero(after_text)
+                if free_before is not True and free_after is not True:
+                    reason = "not-free" if False in {free_before, free_after} else "unconfirmed-total"
+                    logger.warning("[Fanatical] A zero checkout total was not proven for '%s'; stopping safely.", title)
+                    notify_game["status"] = f"failed:{reason}"
+                    await self.take_screenshot(f"fanatical_fail_{filenamify(title)}")
+                    return
                 claimed = bool(await self.page.evaluate("""
                     (() => {
                         const body = (document.body?.innerText || '').toLowerCase();

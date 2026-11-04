@@ -3,22 +3,29 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 import logging
+from datetime import datetime, timezone
 
 import nodriver as uc
 import pyotp
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from src.core.claimer import BaseClaimer, open_first_tab, filenamify
+from src.core.claimer import BaseClaimer, filenamify, open_first_tab
 from src.core.config import cfg
 from src.core.database import async_session, get_or_create
+from src.core.redact import mask_code
+from src.core.selection import is_store_active
+from src.stores.legacygames import legacy_redeem_link
+from src.stores.microsoft import CODE_STORES as MICROSOFT_CODE_STORES
 
 logger = logging.getLogger("fgc.prime")
 
 # Prime Gaming claims page URL (shows all available free games)
 BASE_URL = "https://luna.amazon.com"
 URL_CLAIM = f"{BASE_URL}/claims/home"
+# A claimed offer whose external code was not visible yet. These rows are
+# revisited until Prime exposes the code.
+NO_CODE = "failed:no-code"
 
 # Path to the JSON file where we export claimed games with codes
 JSON_FILE = cfg._data_dir / "prime-gaming.json"
@@ -132,7 +139,9 @@ class PrimeGamingClaimer(BaseClaimer):
         """
         import json
         from pathlib import Path
+
         from sqlalchemy import select
+
         from src.core.database import ClaimedGame
         
         async with async_session() as session:
@@ -666,23 +675,25 @@ class PrimeGamingClaimer(BaseClaimer):
         if diag.get("containerChildren", 0) == 0:
             logger.warning("Container is empty or not found! It might be hidden or DOM structure changed.")
 
-        # --- DB Fetch to skip known codes ---
-        existing_codes_map = {}
-        if cfg.pg_force_check_collected:
-            from src.core.database import async_session, ClaimedGame
-            from sqlalchemy import select
-            async with async_session() as session:
-                stmt = select(ClaimedGame).where(ClaimedGame.store == "prime", ClaimedGame.code.isnot(None), ClaimedGame.code != "")
-                result = await session.execute(stmt)
-                for g in result.scalars().all():
-                    existing_codes_map[g.game_id or g.title] = g.code
+        # Claimed offers whose code had not appeared are deliberately reopened.
+        from sqlalchemy import select
+
+        from src.core.database import ClaimedGame
+        async with async_session() as session:
+            missing_code = sorted(row.game_id for row in (await session.execute(
+                select(ClaimedGame).where(
+                    ClaimedGame.store == "prime",
+                    ClaimedGame.status == NO_CODE,
+                )
+            )).scalars().all())
 
         # --- Statistics ---
         force_check_str = "true" if cfg.pg_force_check_collected else "false"
         stats_raw = await self.page.evaluate(
-            f"""
+            rf"""
             JSON.stringify((() => {{
                 const forceCheck = {force_check_str};
+                const recheck = new Set({json.dumps(missing_code)});
                 const container = document.querySelector('div[data-a-target="offer-list-FGWP_FULL"]');
                 if (!container) return {{ collected: 0, unclaimed: 0, games: [], totalCards: 0 }};
 
@@ -710,7 +721,6 @@ class PrimeGamingClaimer(BaseClaimer):
                         let targetBtn = btn || link;
                         
                         if (!isUnclaimed) {{
-                            if (!forceCheck) return;
                             // Search for the how to play / play game button on collected games
                             const htpBtn = Array.from(card.querySelectorAll('button, a')).find(b => b.textContent && (b.textContent.toLowerCase().includes('how to play') || b.textContent.toLowerCase().includes('play game')));
                             if (!htpBtn) return;
@@ -732,6 +742,7 @@ class PrimeGamingClaimer(BaseClaimer):
                             }}
                             p = p.parentElement;
                         }}
+                        if (targetIsHowToPlay && !forceCheck && !recheck.has(titleText)) return;
 
                         const hrefValue = link ? link.getAttribute('href') : '';
                         
@@ -803,21 +814,13 @@ class PrimeGamingClaimer(BaseClaimer):
 
         total_cards = int(stats.get("totalCards", 0))
         collected = int(stats.get("collected", 0))
-        all_games = stats.get("games", [])
-        
-        # When FORCE_CHECK is on, do NOT filter by existing codes, recheck everything
-        # Epic/Amazon will be caught and skipped Python-side after clicking
-        filtered_games = []
-        for g in all_games:
-            if not cfg.pg_force_check_collected and g.get("alreadyCollected") and existing_codes_map.get(g["title"]):
-                continue
-            filtered_games.append(g)
+        filtered_games = stats.get("games", [])
 
         total = total_cards
         unclaimed_new = len([g for g in filtered_games if not g.get("alreadyCollected")])
         to_recheck = len([g for g in filtered_games if g.get("alreadyCollected")])
 
-        logger.info("Total games: %d | Already claimed: %d | Unclaimed: %d | To re-check (force): %d",
+        logger.info("Total games: %d | Already claimed: %d | Unclaimed: %d | To re-check: %d",
                     total, collected, unclaimed_new, to_recheck)
 
         if cfg.pg_force_check_collected:
@@ -1140,18 +1143,32 @@ class PrimeGamingClaimer(BaseClaimer):
                     logger.warning("'%s' requires account linking for %s – skipping.", title, store)
                     self.notify_games.append({"title": title, "url": url, "status": f"needs linking ({store})"})
                 else:
-                    logger.warning("No code found for '%s'.", title)
-                    self.notify_games.append({"title": title, "url": url, "status": "claimed (no code)"})
+                    logger.warning("No code found for '%s', looking again next run.", title)
+                    self.notify_games.append({"title": title, "url": url, "status": "claimed (code read next run)"})
 
                 async with async_session() as session:
                     obj, _ = await get_or_create(
                         session, store="prime", user=self.user or "unknown",
                         game_id=title, title=title, url=url, status="claimed",
                     )
+                    if not link_needed and not obj.code:
+                        obj.status = NO_CODE
                     await session.commit()
                 return
 
-            logger.info("Code for '%s': %s", title, code)
+            logger.info("Code for '%s': %s", title, mask_code(code))
+
+            extra = {"external_store": store}
+            if str(store).strip().lower() == "legacy games":
+                try:
+                    hrefs = await self.page.evaluate(
+                        "JSON.stringify([...document.querySelectorAll('a[href]')].map(a => a.href))"
+                    )
+                    link = legacy_redeem_link(json.loads(hrefs) if isinstance(hrefs, str) else [])
+                except Exception:
+                    link = ""
+                if link:
+                    extra["redeem_url"] = link
 
             # Save to DB
             async with async_session() as session:
@@ -1160,7 +1177,9 @@ class PrimeGamingClaimer(BaseClaimer):
                     game_id=title, title=title, url=url, status="claimed", code=code,
                 )
                 obj.code = code
-                obj.extra = json.dumps({"external_store": store})
+                obj.extra = json.dumps(extra)
+                if obj.status == NO_CODE:
+                    obj.status = "claimed"
                 await session.commit()
 
             _save_to_json(title, code=code, store=store, url=url, status="claimed")
@@ -1170,17 +1189,22 @@ class PrimeGamingClaimer(BaseClaimer):
                 "gog": "https://www.gog.com/redeem",
                 "microsoft store": "https://account.microsoft.com/billing/redeem",
                 "xbox": "https://account.microsoft.com/billing/redeem",
-                "legacy games": "https://www.legacygames.com/primedeal",
             }
-            redeem_url = redeem_urls.get(store, "")
+            redeem_url = extra.get("redeem_url") or redeem_urls.get(store, "")
             if redeem_url:
-                logger.info("Redeem '%s' at: %s (code: %s)", title, redeem_url, code)
+                logger.info("Redeem '%s' at: %s (code: %s)", title, redeem_url, mask_code(code))
             else:
-                logger.info("Redeem '%s' manually on %s (code: %s)", title, store, code)
+                logger.info("Redeem '%s' manually on %s (code: %s)", title, store, mask_code(code))
 
-            # For GOG codes, we'll let GOGClaimer redeem them retroactively using the correct profile!
             if "gog" in str(store).lower():
-                self.notify_games.append({"title": title, "url": f"https://www.gog.com/redeem/{code}", "status": f"code: {code} (GOG, pending auto-redeem)"})
+                note = "GOG, pending auto-redeem" if is_store_active("gog") else "GOG"
+                self.notify_games.append({"title": title, "url": f"https://www.gog.com/redeem/{code}", "status": f"code: {code} ({note})"})
+            elif str(store).strip().lower() in MICROSOFT_CODE_STORES:
+                note = "Microsoft, pending auto-redeem" if is_store_active("microsoft") else "Microsoft"
+                self.notify_games.append({"title": title, "url": url, "status": f"code: {code} ({note})"})
+            elif str(store).strip().lower() == "legacy games":
+                note = "Legacy Games, pending auto-redeem" if is_store_active("legacygames") else "Legacy Games"
+                self.notify_games.append({"title": title, "url": extra.get("redeem_url") or url, "status": f"code: {code} ({note})"})
             else:
                 self.notify_games.append({"title": title, "url": url, "status": f"code: {code} ({store})"})
 

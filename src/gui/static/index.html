@@ -15,7 +15,7 @@
         <img class="brand-logo" src="/assets/icons/lontrium.png" alt="">
         <span class="brand-name" data-i18n="app.title">Lontrium Control</span>
         <span class="local-label" data-i18n="app.local">LOCAL</span>
-        <span class="app-version" id="appVersion">v1.7.4</span>
+        <span class="app-version" id="appVersion">v1.8.0</span>
       </a>
       <div class="header-actions">
         <label class="language-control" for="languageSelect">
@@ -61,6 +61,11 @@
       <div class="store-list" id="storeGrid" aria-live="polite"></div>
     </section>
 
+    <section class="redemptions-section" id="redemptionsSection" aria-labelledby="redemptionsTitle" hidden>
+      <div class="section-header"><div><h2 id="redemptionsTitle" data-i18n="redemptions.title">Game codes</h2><p data-i18n="redemptions.copy">Safe status only. Codes and account data never appear here.</p></div></div>
+      <div class="redemption-list" id="redemptionList" aria-live="polite"></div>
+    </section>
+
     <section class="history-section" aria-labelledby="historyTitle">
       <div class="section-header"><div><h2 id="historyTitle" data-i18n="history.title">Recent activity</h2><p data-i18n="history.copy">Saved locally for 90 days, without account data or raw logs.</p></div></div>
       <div class="history-list" id="historyList" aria-live="polite"></div>
@@ -78,7 +83,7 @@
 
   <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
   <aside class="drawer" id="settingsDrawer" aria-hidden="true" data-i18n-aria-label="settings.title">
-    <header class="drawer-header"><div class="drawer-title"><img class="settings-mascot" src="/assets/icons/lontrium.png" alt="Lontrium, the otter mascot"><div><h2 data-i18n="settings.title">Settings</h2><p data-i18n="settings.copy">Accounts, scheduling and module behavior.</p><small class="settings-version"><span data-i18n="settings.versionLabel">Version</span> <span id="settingsVersion">v1.7.4</span></small></div></div><button class="close-button" id="closeSettings" type="button" data-i18n-aria-label="common.close">×</button></header>
+    <header class="drawer-header"><div class="drawer-title"><img class="settings-mascot" src="/assets/icons/lontrium.png" alt="Lontrium, the otter mascot"><div><h2 data-i18n="settings.title">Settings</h2><p data-i18n="settings.copy">Accounts, scheduling and module behavior.</p><small class="settings-version"><span data-i18n="settings.versionLabel">Version</span> <span id="settingsVersion">v1.8.0</span></small></div></div><button class="close-button" id="closeSettings" type="button" data-i18n-aria-label="common.close">×</button></header>
     <form id="settingsForm"><div class="settings-body"><nav class="settings-nav" id="settingsNav" data-i18n-aria-label="settings.title"></nav><div class="settings-content" id="settingsContent"></div></div><footer class="drawer-footer"><div class="drawer-notes"><p><strong data-i18n="settings.storageTitle">Local storage:</strong> <span data-i18n="settings.storageCopy">your accounts and preferences remain on this computer.</span></p><p data-i18n="settings.blankSecret">Leave a secret field blank to keep its current value.</p></div><button class="button primary" type="submit" data-i18n="common.save">Save</button></footer></form>
   </aside>
 
@@ -86,6 +91,17 @@
     <section class="onboarding-window" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
       <aside class="onboarding-sidebar"><div><span class="onboarding-eyebrow" data-i18n="onboarding.eyebrow">FIRST-TIME SETUP</span><h1 id="onboardingTitle" data-i18n="onboarding.title">Welcome to Lontrium Control</h1><p data-i18n="onboarding.intro">Configure your local automation in a few clear steps.</p></div><ol id="onboardingSteps"></ol><img class="onboarding-mascot" src="/assets/icons/lontrium.png" alt="Lontrium, the otter mascot"><a class="onboarding-credit" href="https://github.com/rafaelcairess" target="_blank" rel="noreferrer" data-i18n="app.by">by Rafael Caires</a></aside>
       <form class="onboarding-main" id="onboardingForm"><div class="onboarding-content" id="onboardingContent"></div><footer class="onboarding-actions"><div class="onboarding-actions-start"><button class="button secondary" id="setupBack" type="button" data-i18n="common.back">Back</button><button class="button quiet" id="setupExit" type="button" data-i18n="onboarding.exitPreview" hidden>Exit introduction</button></div><button class="button primary" id="setupNext" type="button" data-i18n="common.continue">Continue</button></footer></form>
+    </section>
+  </div>
+
+  <div class="release-notice" id="releaseNotice" hidden>
+    <section class="release-notice-card" role="dialog" aria-modal="true" aria-labelledby="releaseNoticeTitle">
+      <button class="close-button release-notice-close" id="releaseNoticeClose" type="button" data-i18n-aria-label="common.close">×</button>
+      <span class="release-notice-eyebrow" data-i18n="releases.updated">LONTRIUM UPDATED</span>
+      <h2 id="releaseNoticeTitle"></h2>
+      <p data-i18n="releases.noticeCopy">Here is what changed in this version.</p>
+      <div class="release-notice-items" id="releaseNoticeItems"></div>
+      <footer class="release-notice-actions"><button class="button secondary" id="releaseNoticeHistory" type="button" data-i18n="releases.viewHistory">View all changes</button><button class="button primary" id="releaseNoticeContinue" type="button" data-i18n="common.continue">Continue</button></footer>
     </section>
   </div>
 

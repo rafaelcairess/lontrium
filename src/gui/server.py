@@ -14,9 +14,22 @@ from pathlib import Path
 from threading import Thread
 from urllib.parse import parse_qs, urlparse
 
-
 logger = logging.getLogger("fgc.gui")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+async def _empty_releases() -> dict:
+    """Compatibility fallback for embedders that do not expose release history."""
+    return {
+        "currentVersion": "",
+        "lastSeenVersion": None,
+        "showNotice": False,
+        "releases": [],
+    }
+
+
+async def _ignore_release_ack(version: str) -> dict:
+    return {"acknowledged": True, "version": version}
 
 
 class DashboardHTTPServer(ThreadingHTTPServer):
@@ -31,6 +44,8 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         config_callback: Callable[[], Awaitable[dict]],
         save_callback: Callable[[dict], Awaitable[dict]],
         setup_callback: Callable[[dict], Awaitable[dict]],
+        releases_callback: Callable[[], Awaitable[dict]],
+        release_ack_callback: Callable[[str], Awaitable[dict]],
         update_callback: Callable[[], Awaitable[dict]],
         manual_actions_callback: Callable[[], Awaitable[dict]],
         manual_action_callback: Callable[[str, str], Awaitable[dict]],
@@ -45,6 +60,8 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         self.config_callback = config_callback
         self.save_callback = save_callback
         self.setup_callback = setup_callback
+        self.releases_callback = releases_callback
+        self.release_ack_callback = release_ack_callback
         self.update_callback = update_callback
         self.manual_actions_callback = manual_actions_callback
         self.manual_action_callback = manual_action_callback
@@ -163,6 +180,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._json(self.server.await_result(self.server.config_callback()))
             elif path == "/api/update":
                 self._json(self.server.await_result(self.server.update_callback()))
+            elif path == "/api/releases":
+                self._json(self.server.await_result(self.server.releases_callback()))
             elif path == "/api/windows-events":
                 self._json(self.server.await_result(self.server.manual_actions_callback()))
             else:
@@ -207,6 +226,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             elif path == "/api/setup":
                 result = self.server.await_result(self.server.setup_callback(payload.get("values")))
                 self._json(result)
+            elif path == "/api/releases/acknowledge":
+                version = payload.get("version")
+                if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+                    raise ValueError("Invalid release version")
+                self._json(self.server.await_result(self.server.release_ack_callback(version)))
             elif path == "/api/stop":
                 self._json(self.server.await_result(self.server.stop_callback()), HTTPStatus.ACCEPTED)
             elif path == "/api/activity":
@@ -246,6 +270,8 @@ def start_dashboard(
     config_callback: Callable[[], Awaitable[dict]],
     save_callback: Callable[[dict], Awaitable[dict]],
     setup_callback: Callable[[dict], Awaitable[dict]],
+    releases_callback: Callable[[], Awaitable[dict]] = _empty_releases,
+    release_ack_callback: Callable[[str], Awaitable[dict]] = _ignore_release_ack,
     update_callback: Callable[[], Awaitable[dict]],
     manual_actions_callback: Callable[[], Awaitable[dict]],
     manual_action_callback: Callable[[str, str], Awaitable[dict]],
@@ -262,6 +288,8 @@ def start_dashboard(
         config_callback,
         save_callback,
         setup_callback,
+        releases_callback,
+        release_ack_callback,
         update_callback,
         manual_actions_callback,
         manual_action_callback,

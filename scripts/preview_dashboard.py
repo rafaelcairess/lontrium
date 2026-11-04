@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 
+from src.gui.releases import get_release_history
 from src.gui.server import start_dashboard
 from src.gui.settings import SPECS
 from src.gui.state import STORE_META
@@ -82,6 +83,22 @@ async def main() -> None:
             "finishedAt": (now - timedelta(minutes=12)).isoformat(),
             "stores": stores,
             "schedule": {"nextRun": (now + timedelta(hours=11, minutes=48)).isoformat()},
+            "pendingRedemptions": [
+                {
+                    "title": "Mystery Frontier",
+                    "target": "microsoft",
+                    "targetName": "Microsoft / Xbox",
+                    "state": "pending",
+                    "action": "configure",
+                },
+                {
+                    "title": "Retro Puzzle Collection",
+                    "target": "legacygames",
+                    "targetName": "Legacy Games",
+                    "state": "redeemed",
+                    "action": "none",
+                },
+            ],
         }
 
     async def config() -> dict:
@@ -116,7 +133,7 @@ async def main() -> None:
             "values": values,
             "configured": {spec.key: False for spec in SPECS if spec.secret},
             "setup": {"required": True, "complete": False},
-            "version": "1.7.4",
+            "version": "1.8.0",
         }
 
     async def history(_limit: int, _run_id: str | None) -> dict:
@@ -130,6 +147,11 @@ async def main() -> None:
 
     async def update() -> dict:
         return {"currentVersion": "1.0.0", "available": False, "latestVersion": "1.0.0"}
+
+    async def releases() -> dict:
+        # Documentation previews are fresh installs, so history is visible without
+        # presenting the one-time post-update notice.
+        return get_release_history(setup_complete=False)
 
     async def manual_actions() -> dict:
         return {"enabled": True, "events": []}
@@ -159,6 +181,7 @@ async def main() -> None:
         config_callback=config,
         save_callback=save,
         setup_callback=setup,
+        releases_callback=releases,
         update_callback=update,
         manual_actions_callback=manual_actions,
         manual_action_callback=manual_action,
